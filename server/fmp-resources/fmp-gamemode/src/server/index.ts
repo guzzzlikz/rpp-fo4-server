@@ -5,6 +5,7 @@
 import { adminLevel, isLoggedIn } from "./accounts";
 import "./admin";
 import "./character";
+import "./chatmode";
 import { AdminLevel, type Command, commandsFor, findCommand, kAdminLevelNames, registerCommands, reply } from "./chat";
 import "./commands";
 import "./emotes";

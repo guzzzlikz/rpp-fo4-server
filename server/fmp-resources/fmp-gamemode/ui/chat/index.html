@@ -7,7 +7,8 @@
   The gamemode's chat box, replacing FMP's native one (which does not take Cyrillic). Driven by
   src/client/chat.ts:
     page -> script   callEvent("chat:ready"), callEvent("chat:send", "<text>"), callEvent("chat:blur")
-    script -> page   "chat:line" { text, color?, author? }, "chat:focus", "chat:visible" <boolean>
+    script -> page   "chat:line" { text, color?, author? }, "chat:focus"
+    page errors go back as callEvent("chat:error", "<message>") for client\logs\FMP.log
   The page is transparent and full screen; only the box in the corner draws. Lines fade after a while
   unless the player is typing.
 -->
@@ -20,7 +21,6 @@
   }
   * { box-sizing: border-box; margin: 0; }
   html, body { height: 100%; overflow: hidden; background: transparent; font: 15px/1.35 "Segoe UI", Roboto, Arial, sans-serif; user-select: none; }
-  body:not(.on) #box { display: none; }
 
   #box { position: fixed; left: 24px; top: 24vh; width: min(560px, 42vw); }
   #log { display: flex; flex-direction: column; gap: 2px; max-height: 34vh; overflow: hidden; justify-content: flex-end; }
@@ -50,6 +50,7 @@
   </form>
 </div>
 <script>
+  window.addEventListener("error", (event) => callEvent("chat:error", `${event.message} @${event.lineno}`));
   const MAX_LINES = 60, FADE_MS = 12000, MAX_LENGTH = 200;
   const log = document.getElementById("log"), form = document.getElementById("form"), input = document.getElementById("input"), count = document.getElementById("count");
   const history = [];
@@ -139,7 +140,6 @@
 
   window.addEventListener("chat:line", (event) => addLine(event.detail));
   window.addEventListener("chat:focus", () => openInput());
-  window.addEventListener("chat:visible", (event) => document.body.classList.toggle("on", event.detail === true));
 
   callEvent("chat:ready", null);
 </script>

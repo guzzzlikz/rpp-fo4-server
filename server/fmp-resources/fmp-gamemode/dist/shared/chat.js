@@ -4,13 +4,19 @@
 // (ui/chat), which types and draws any script.
 //
 //   client -> server  send   ChatSend: a line the player typed, speech or a /command
+//                     hello  the client's chat is up: which box to use?
 //   server -> client  line   ChatLine: a line to show
+//                     mode   ChatMode: which box to use; also broadcast when staff switch it
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.readChatLine = exports.readChatSend = exports.cleanChatText = exports.kChatMaxLength = exports.ChatEvents = void 0;
+exports.readChatLine = exports.readChatSend = exports.cleanChatText = exports.kChatMaxLength = exports.readChatMode = exports.ChatEvents = void 0;
 exports.ChatEvents = {
     send: "rp:chat:send",
     line: "rp:chat:line",
+    hello: "rp:chat:hello",
+    mode: "rp:chat:mode",
 };
+const readChatMode = (payload) => (asRecord(payload)["mode"] === "native" ? "native" : "custom");
+exports.readChatMode = readChatMode;
 exports.kChatMaxLength = 200;
 const asRecord = (payload) => {
     if (typeof payload === "string") {

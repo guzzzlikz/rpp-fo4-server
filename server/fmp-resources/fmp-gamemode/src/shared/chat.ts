@@ -3,12 +3,26 @@
 // (ui/chat), which types and draws any script.
 //
 //   client -> server  send   ChatSend: a line the player typed, speech or a /command
+//                     hello  the client's chat is up: which box to use?
 //   server -> client  line   ChatLine: a line to show
+//                     mode   ChatMode: which box to use; also broadcast when staff switch it
 
 export const ChatEvents = {
     send: "rp:chat:send",
     line: "rp:chat:line",
+    hello: "rp:chat:hello",
+    mode: "rp:chat:mode",
 } as const;
+
+// "custom": the gamemode's box (ui/chat). "native": FMP's own, as a way back should ours misbehave;
+// it does not take Cyrillic.
+export type ChatModeName = "custom" | "native";
+
+export interface ChatMode {
+    mode: ChatModeName;
+}
+
+export const readChatMode = (payload: unknown): ChatModeName => (asRecord(payload)["mode"] === "native" ? "native" : "custom");
 
 export const kChatMaxLength = 200;
 

@@ -176,6 +176,48 @@ Events.on("resourceStop", (resourceName: string): void => {
     pending.clear();
 });
 
+// --- "/unstuck": the player's own way out ----------------------------------------------------------
+
+// Their game can report them up while their body stays lying (seen after deaths with a weapon in
+// hand): nothing here can see that, so the player says so. First a move on the spot; asked again
+// soon after, a fresh death the normal respawn brings them back from.
+const kUnstuckWindowMs = 30000;
+const kUnstuckCooldownMs = 5000;
+const unstuckAt = new Map<number, number>();
+
+Events.on("playerDisconnect", (player: Player): void => {
+    unstuckAt.delete(player.id);
+});
+
+registerCommands(AdminLevel.player, {
+    unstuck: (player: Player): void => {
+        const name: string = accountName(player);
+        if (player.isDead) {
+            if (!pending.has(player.id)) {
+                schedule(player, 0);
+            }
+            reply(player, "Возрождение уже идёт, подождите несколько секунд.");
+            return;
+        }
+        const now: number = Date.now();
+        const last: number | undefined = unstuckAt.get(player.id);
+        if (last !== undefined && now - last < kUnstuckCooldownMs) {
+            return;
+        }
+        if (last !== undefined && now - last < kUnstuckWindowMs) {
+            unstuckAt.delete(player.id);
+            console.warn(`${name}: /unstuck again; through death once more`);
+            reply(player, "Повторное возрождение…");
+            player.health = 0;
+            return;
+        }
+        unstuckAt.set(player.id, now);
+        console.warn(`${name}: /unstuck; moving them on the spot`);
+        player.teleport(player.position, player.heading, teleportSpace(player.getSpace()), { loadScreen: false });
+        reply(player, "Персонаж переставлен. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
+    },
+});
+
 registerCommands(AdminLevel.moderator, {
     // "/revive <player>": brings someone who is down back where they fell.
     revive: (player: Player, args: string[]): void => {

@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const accounts_1 = require("./accounts");
 require("./admin");
 require("./character");
+require("./chatmode");
 const chat_1 = require("./chat");
 require("./commands");
 require("./emotes");

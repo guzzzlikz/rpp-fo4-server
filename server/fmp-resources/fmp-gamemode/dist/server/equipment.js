@@ -89,12 +89,20 @@ const freeze = (player) => {
 exports.freeze = freeze;
 // From respawn.ts, once the player's own game reports them standing again after a death. Not sooner:
 // an equip while their game still plays the get-up left them lying there for good.
+//
+// Armor only. Players who died with a weapon in hand stayed lying on their own screen even though
+// their game reported them up; drawing the weapon for them right after the get-up is the suspect, so
+// after a death the weapon stays in the bag and they draw it themselves. Logins still hand it back.
+const kRestoreWeaponAfterRespawn = false;
 const restoreAfterRespawn = (player) => {
     const equipment = lastKnown.get(player.id);
-    if (equipment !== undefined) {
-        restore(player, equipment, "respawn");
+    if (equipment === undefined) {
+        holdUntil.delete(player.id);
+        return;
     }
-    else {
+    restore(player, kRestoreWeaponAfterRespawn ? equipment : { weapon: null, outfit: equipment.outfit }, "respawn");
+    if (isEmpty(equipment) || (!kRestoreWeaponAfterRespawn && equipment.outfit.length === 0)) {
+        // Nothing to put on: sampling resumes now rather than at the freeze's end.
         holdUntil.delete(player.id);
     }
 };

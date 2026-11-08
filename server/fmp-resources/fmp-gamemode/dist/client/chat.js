@@ -6,16 +6,18 @@
 //     chatMessage event; its shape is not documented, so it is read loosely and its first one logged.
 //   - What the player types goes to the server as ChatEvents.send and is handled there exactly as
 //     native chat and /commands are. The two commands the server core answers itself go natively.
-// Should the page fail to load, the native chat stays as it was.
+//   - The server says which box to use (ChatEvents.mode): staff can switch everyone back to the
+//     native one with "chatmode native" in the server console.
+// The native box is hidden only once our page has loaded and the mode is "custom". Every step is
+// logged to client\logs\FMP.log with a [chat] prefix.
 Object.defineProperty(exports, "__esModule", { value: true });
-const auth_1 = require("../shared/auth");
 const chat_1 = require("../shared/chat");
 const errors_1 = require("../shared/errors");
 const kPage = "fw://resources/fmp-gamemode/ui/chat/index.html";
 const kOpenKey = "t";
-// Under the emote wheel (150) and the login page (200).
+// Under the emote wheel (150) and the login page (200), which covers it until the player is in.
 const kZIndex = 100;
-const kPageEvents = { ready: "chat:ready", send: "chat:send", blur: "chat:blur", line: "chat:line", focus: "chat:focus", visible: "chat:visible" };
+const kPageEvents = { ready: "chat:ready", send: "chat:send", blur: "chat:blur", error: "chat:error", line: "chat:line", focus: "chat:focus" };
 // Answered by the server core itself (core/server.cpp): they only work through the native chat.
 const kNativeCommands = new Set(["invset", "npc"]);
 // Lines that arrive before the page has loaded wait here.
@@ -23,9 +25,27 @@ const kBacklog = 50;
 let view = -1;
 let pageReady = false;
 let typing = false;
-let loggedIn = false;
+// Until the server says otherwise, ours: it is what the server defaults to.
+let mode = "custom";
 let loggedNativeShape = false;
 const backlog = [];
+const ours = () => mode === "custom" && view >= 0 && pageReady;
+// Shows ours and hides the native box, or the other way round, as the mode and the page allow.
+const applyMode = () => {
+    const useOurs = ours();
+    Chat.setUIVisible(!useOurs);
+    if (view >= 0) {
+        if (useOurs) {
+            Web.showView(view);
+        }
+        else {
+            typing = false;
+            Web.focusView(view, false);
+            Web.hideView(view);
+        }
+    }
+    console.log(`[chat] using the ${useOurs ? "gamemode's" : "native"} chat box (mode ${mode}, page ${pageReady ? "loaded" : "not loaded"})`);
+};
 const show = (line) => {
     if (view >= 0 && pageReady) {
         Web.emit(view, kPageEvents.line, line);
@@ -43,12 +63,12 @@ const stopTyping = () => {
     }
 };
 const startTyping = () => {
-    if (view < 0 || !pageReady || typing || !loggedIn) {
+    if (!ours() || typing) {
         return;
     }
     typing = true;
     Web.focusView(view, true);
-    Web.emit(view, kPageEvents.focus, null);
+    Web.emit(view, kPageEvents.focus, { open: true });
 };
 const send = (raw) => {
     const text = (0, chat_1.cleanChatText)(raw);
@@ -73,15 +93,14 @@ const create = () => {
         view = -1;
         return;
     }
+    console.log(`[chat] chat box view ${view} created`);
     Web.on(view, kPageEvents.ready, () => {
         pageReady = true;
-        // Only now that ours works is the native box put away.
-        Chat.setUIVisible(false);
-        console.log("[chat] chat box loaded; native chat hidden");
-        Web.emit(view, kPageEvents.visible, loggedIn);
+        console.log("[chat] chat box page loaded");
         for (const line of backlog.splice(0)) {
             Web.emit(view, kPageEvents.line, line);
         }
+        applyMode();
     });
     Web.on(view, kPageEvents.send, (payload) => {
         stopTyping();
@@ -90,6 +109,9 @@ const create = () => {
         }
     });
     Web.on(view, kPageEvents.blur, stopTyping);
+    Web.on(view, kPageEvents.error, (payload) => {
+        console.error(`[chat] page error: ${String(payload).slice(0, 300)}`);
+    });
 };
 Events.on(chat_1.ChatEvents.line, (payload) => {
     const line = (0, chat_1.readChatLine)(payload);
@@ -97,7 +119,12 @@ Events.on(chat_1.ChatEvents.line, (payload) => {
         show(line);
     }
 });
+Events.on(chat_1.ChatEvents.mode, (payload) => {
+    mode = (0, chat_1.readChatMode)(payload);
+    applyMode();
+});
 // FMP's own lines: (text), (text, author, color), or one object with the fields; whatever comes.
+// The native box shows them itself when it is the one in use.
 Events.on("chatMessage", (...args) => {
     if (!loggedNativeShape) {
         loggedNativeShape = true;
@@ -113,13 +140,8 @@ Events.on("chatMessage", (...args) => {
         show({ text: first, ...(typeof second === "string" && second !== "" ? { author: second } : {}), ...(typeof third === "number" ? { color: third } : {}) });
     }
 });
-// The box stays empty and closed until the player is somebody: the login page owns the screen before.
-Events.on(auth_1.AuthEvents.done, () => {
-    loggedIn = true;
-    if (view >= 0 && pageReady) {
-        Web.emit(view, kPageEvents.visible, true);
-    }
-});
 // While the page has focus it takes the keys itself; this fires only while the game has input.
-Key.bind(kOpenKey, "down", startTyping);
+const bound = Key.bind(kOpenKey, "down", startTyping);
+console.log(`[chat] key ${kOpenKey.toUpperCase()} ${bound ? "bound" : "NOT bound"} to the chat box`);
 create();
+Events.emitServer(chat_1.ChatEvents.hello);

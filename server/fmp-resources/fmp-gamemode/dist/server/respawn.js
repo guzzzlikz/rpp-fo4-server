@@ -157,6 +157,44 @@ Events.on("resourceStop", (resourceName) => {
     pending.forEach((timer) => clearTimeout(timer));
     pending.clear();
 });
+// --- "/unstuck": the player's own way out ----------------------------------------------------------
+// Their game can report them up while their body stays lying (seen after deaths with a weapon in
+// hand): nothing here can see that, so the player says so. First a move on the spot; asked again
+// soon after, a fresh death the normal respawn brings them back from.
+const kUnstuckWindowMs = 30000;
+const kUnstuckCooldownMs = 5000;
+const unstuckAt = new Map();
+Events.on("playerDisconnect", (player) => {
+    unstuckAt.delete(player.id);
+});
+(0, chat_1.registerCommands)(chat_1.AdminLevel.player, {
+    unstuck: (player) => {
+        const name = (0, accounts_1.accountName)(player);
+        if (player.isDead) {
+            if (!pending.has(player.id)) {
+                schedule(player, 0);
+            }
+            (0, chat_1.reply)(player, "Возрождение уже идёт, подождите несколько секунд.");
+            return;
+        }
+        const now = Date.now();
+        const last = unstuckAt.get(player.id);
+        if (last !== undefined && now - last < kUnstuckCooldownMs) {
+            return;
+        }
+        if (last !== undefined && now - last < kUnstuckWindowMs) {
+            unstuckAt.delete(player.id);
+            console.warn(`${name}: /unstuck again; through death once more`);
+            (0, chat_1.reply)(player, "Повторное возрождение…");
+            player.health = 0;
+            return;
+        }
+        unstuckAt.set(player.id, now);
+        console.warn(`${name}: /unstuck; moving them on the spot`);
+        player.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()), { loadScreen: false });
+        (0, chat_1.reply)(player, "Персонаж переставлен. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
+    },
+});
 (0, chat_1.registerCommands)(chat_1.AdminLevel.moderator, {
     // "/revive <player>": brings someone who is down back where they fell.
     revive: (player, args) => {

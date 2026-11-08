@@ -23,3 +23,6 @@ node_modules/
 *.rar
 *.zip
 *.7z
+
+# per-server switches written by the gamemode at runtime
+/server/fmp-resources/fmp-gamemode/chat-settings.json
