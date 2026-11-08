@@ -49,6 +49,7 @@ const chat_1 = require("./chat");
 const Creator = __importStar(require("./creator"));
 const Database = __importStar(require("./database"));
 const Equipment = __importStar(require("./equipment"));
+const getup_1 = require("./getup");
 const places_1 = require("./places");
 // Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
 // (core/frontend/main_menu.h, kSessionCell). The move there runs under the join's loading screen,
@@ -225,6 +226,8 @@ const arrive = (session) => {
         return;
     }
     player.setVirtualWorld(0);
+    // Left in the middle of the fall that gets a body up (getup.ts): their character kept the paralysis.
+    (0, getup_1.clearKnockDown)(player);
     if (stored?.position) {
         player.teleport((0, places_1.toVector)(stored.position), stored.heading, (0, places_1.teleportSpace)(stored.space), { loadScreen: false });
     }
