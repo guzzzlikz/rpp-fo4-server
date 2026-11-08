@@ -26,8 +26,7 @@ fo4-server/
 │   ├── fmp-data/gamemode.sqlite база аккаунтов и персонажей (не в git, делай бэкапы)
 │   └── fmp-resources/           ресурсы, которые загружает сервер; собранные dist/ тоже в git
 │       ├── fmp-gamemode/        стандартный gamemode из релиза
-│       ├── fmp-healthcheck/     наш ресурс самопроверки
-│       └── fmp-asset-demo/      демо стриминга ассетов из релиза
+│       └── fmp-healthcheck/     наш ресурс самопроверки
 ├── client/                      лаунчер и клиент (из релиза, не в git)
 ├── server-linux/                Linux-сервер (из релиза, не в git)
 └── fmp-resources/               запасная копия gamemode из релиза (не в git)
@@ -121,5 +120,14 @@ npm run watch:client     # пересборка клиентской части 
 4. Клиентские данные считай недоверенными и проверяй их на сервере.
 5. **Не подключай нативные npm-модули** (`*.node`, например `better-sqlite3`, `bcrypt`): внутри Windows `FMPServer.exe` они не загружаются. Для SQLite используй `node:sqlite`, для хэшей `node:crypto`. Подробности в [known-issues.md](known-issues.md).
 6. Напиши `docs/resources/<имя>.md` по [шаблону](resources/_template.md).
+
+## Подключение к серверу (для тестера с игрой)
+
+1. Запусти Steam, затем `client\FMPLauncher.exe`.
+2. Подключайся по адресу сервера, **не `0.0.0.0`**. Это адрес «слушать на всех интерфейсах», к нему подключиться нельзя.
+   - сервер на том же компьютере: `fmp://127.0.0.1:27015?nick=ТвойНик`
+   - другой компьютер: `fmp://<IP сервера>:27015?nick=ТвойНик`
+3. Если не пускает, смотри `client\logs\FMP.log` (строки `[error]`) и [known-issues.md](known-issues.md).
+4. Доступность сервера с машины игрока: открой в браузере `http://<IP сервера>:27016/`, должен прийти JSON с `framework_version`. Если страница не открывается, закрыт TCP 27016.
 
 Документация API: https://docs.fallout.mp/reference/server/ и https://docs.fallout.mp/reference/client/
