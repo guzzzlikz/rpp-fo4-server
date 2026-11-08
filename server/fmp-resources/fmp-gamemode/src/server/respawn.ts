@@ -8,7 +8,7 @@
 // does nothing for a player the server thinks alive, so their client reports it (src/client/life.ts)
 // and the server escalates: a move on the spot, then a fresh death the normal path brings back from.
 
-import { LifeEvents, type LifeStuck, readLifeStuck } from "../shared/life";
+import { LifeEvents, type LifeStuck, type LifeUp, readLifeStuck, readLifeUp } from "../shared/life";
 import { accountName } from "./accounts";
 import { AdminLevel, registerCommands, reply } from "./chat";
 import { freeze as freezeEquipment, restoreAfterRespawn } from "./equipment";
@@ -84,24 +84,59 @@ const awaitingUp = new Set<number>();
 // Their game may report standing a moment before the server has them alive: look again this soon.
 const kUpRecheckMs = 1500;
 
-const onUp = (player: Player, recheck: boolean): void => {
+// After the client's own shake (the fly camera, src/client/life.ts): the body back to its stance,
+// and for a death with a weapon out, the case that left players lying on their own screen, a move on
+// the spot as well.
+const kStanceDelayMs = 300;
+const kMoveDelayMs = 900;
+
+const moveOnTheSpot = (player: Player): void => {
+    if (!isGone(player) && !player.isDead) {
+        player.teleport(player.position, player.heading, teleportSpace(player.getSpace()), { loadScreen: false });
+    }
+};
+
+// Everything that can shake a body loose without killing it: the client's fly camera, the stance,
+// a move on the spot.
+const shakeLoose = (player: Player, move: boolean): void => {
+    player.emit(LifeEvents.shake);
+    setTimeout((): void => {
+        if (!isGone(player) && !player.isDead) {
+            player.stopIdle();
+        }
+    }, kStanceDelayMs);
+    if (move) {
+        setTimeout((): void => moveOnTheSpot(player), kMoveDelayMs);
+    }
+};
+
+const onUp = (player: Player, report: LifeUp, recheck: boolean): void => {
     if (isGone(player) || !awaitingUp.has(player.id)) {
         return;
     }
     if (player.isDead) {
         if (recheck) {
-            setTimeout((): void => onUp(player, false), kUpRecheckMs);
+            setTimeout((): void => onUp(player, report, false), kUpRecheckMs);
         }
         return;
     }
     awaitingUp.delete(player.id);
     stuck.delete(player.id);
-    console.log(`${accountName(player)}: their game has them standing; equipment goes back on`);
+    console.log(`${accountName(player)}: their game has them standing (weapon out at death: ${report.weaponDrawn ? "yes" : "no"}, camera ${report.camera}); shaking them loose, equipment goes back on`);
+    // The client has already taken and given back the fly camera; the server's part follows.
+    setTimeout((): void => {
+        if (!isGone(player) && !player.isDead) {
+            player.stopIdle();
+        }
+    }, kStanceDelayMs);
+    if (report.weaponDrawn) {
+        setTimeout((): void => moveOnTheSpot(player), kMoveDelayMs);
+    }
     restoreAfterRespawn(player);
 };
 
-Events.onClient(LifeEvents.up, (sender: unknown): void => {
-    onUp(sender as Player, true);
+Events.onClient(LifeEvents.up, (sender: unknown, payload: unknown): void => {
+    onUp(sender as Player, readLifeUp(payload), true);
 });
 
 // --- their game shows them dead while the server has them up --------------------------------------
@@ -142,11 +177,11 @@ Events.onClient(LifeEvents.stuck, (sender: unknown, payload: unknown): void => {
     }
 
     if (step === 1) {
-        // A move on the spot puts the body where the actor is.
-        player.teleport(player.position, player.heading, teleportSpace(player.getSpace()), { loadScreen: false });
+        // The fly camera, the stance and a move on the spot, which puts the body where the actor is.
+        shakeLoose(player, true);
     } else if (step <= kMaxStuckSteps) {
         // Through death again, in step with the server this time: playerDeath, then the respawn chain.
-        player.health = 0;
+        player.kill();
     } else {
         console.error(`${name}: still shown dead after ${kMaxStuckSteps} recovery steps; send client\\logs\\FMP.log`);
         reply(player, "Your game still shows you down. Rejoin the server; staff, please collect client\\logs\\FMP.log.");
@@ -208,13 +243,13 @@ registerCommands(AdminLevel.player, {
             unstuckAt.delete(player.id);
             console.warn(`${name}: /unstuck again; through death once more`);
             reply(player, "Повторное возрождение…");
-            player.health = 0;
+            player.kill();
             return;
         }
         unstuckAt.set(player.id, now);
-        console.warn(`${name}: /unstuck; moving them on the spot`);
-        player.teleport(player.position, player.heading, teleportSpace(player.getSpace()), { loadScreen: false });
-        reply(player, "Персонаж переставлен. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
+        console.warn(`${name}: /unstuck; shaking them loose (camera, stance, a move on the spot)`);
+        shakeLoose(player, true);
+        reply(player, "Камера и персонаж сброшены. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
     },
 });
 

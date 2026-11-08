@@ -74,23 +74,55 @@ Events.on("playerDisconnect", (player) => {
 const awaitingUp = new Set();
 // Their game may report standing a moment before the server has them alive: look again this soon.
 const kUpRecheckMs = 1500;
-const onUp = (player, recheck) => {
+// After the client's own shake (the fly camera, src/client/life.ts): the body back to its stance,
+// and for a death with a weapon out, the case that left players lying on their own screen, a move on
+// the spot as well.
+const kStanceDelayMs = 300;
+const kMoveDelayMs = 900;
+const moveOnTheSpot = (player) => {
+    if (!isGone(player) && !player.isDead) {
+        player.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()), { loadScreen: false });
+    }
+};
+// Everything that can shake a body loose without killing it: the client's fly camera, the stance,
+// a move on the spot.
+const shakeLoose = (player, move) => {
+    player.emit(life_1.LifeEvents.shake);
+    setTimeout(() => {
+        if (!isGone(player) && !player.isDead) {
+            player.stopIdle();
+        }
+    }, kStanceDelayMs);
+    if (move) {
+        setTimeout(() => moveOnTheSpot(player), kMoveDelayMs);
+    }
+};
+const onUp = (player, report, recheck) => {
     if (isGone(player) || !awaitingUp.has(player.id)) {
         return;
     }
     if (player.isDead) {
         if (recheck) {
-            setTimeout(() => onUp(player, false), kUpRecheckMs);
+            setTimeout(() => onUp(player, report, false), kUpRecheckMs);
         }
         return;
     }
     awaitingUp.delete(player.id);
     stuck.delete(player.id);
-    console.log(`${(0, accounts_1.accountName)(player)}: their game has them standing; equipment goes back on`);
+    console.log(`${(0, accounts_1.accountName)(player)}: their game has them standing (weapon out at death: ${report.weaponDrawn ? "yes" : "no"}, camera ${report.camera}); shaking them loose, equipment goes back on`);
+    // The client has already taken and given back the fly camera; the server's part follows.
+    setTimeout(() => {
+        if (!isGone(player) && !player.isDead) {
+            player.stopIdle();
+        }
+    }, kStanceDelayMs);
+    if (report.weaponDrawn) {
+        setTimeout(() => moveOnTheSpot(player), kMoveDelayMs);
+    }
     (0, equipment_1.restoreAfterRespawn)(player);
 };
-Events.onClient(life_1.LifeEvents.up, (sender) => {
-    onUp(sender, true);
+Events.onClient(life_1.LifeEvents.up, (sender, payload) => {
+    onUp(sender, (0, life_1.readLifeUp)(payload), true);
 });
 // --- their game shows them dead while the server has them up --------------------------------------
 // A report this long after the last one starts a new incident, from the first step.
@@ -125,12 +157,12 @@ Events.onClient(life_1.LifeEvents.stuck, (sender, payload) => {
         console.warn(`${name}: their game shows them dead for ${report.secondsDown} s but the server has them up; recovery step ${step}/${kMaxStuckSteps}`);
     }
     if (step === 1) {
-        // A move on the spot puts the body where the actor is.
-        player.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()), { loadScreen: false });
+        // The fly camera, the stance and a move on the spot, which puts the body where the actor is.
+        shakeLoose(player, true);
     }
     else if (step <= kMaxStuckSteps) {
         // Through death again, in step with the server this time: playerDeath, then the respawn chain.
-        player.health = 0;
+        player.kill();
     }
     else {
         console.error(`${name}: still shown dead after ${kMaxStuckSteps} recovery steps; send client\\logs\\FMP.log`);
@@ -186,13 +218,13 @@ Events.on("playerDisconnect", (player) => {
             unstuckAt.delete(player.id);
             console.warn(`${name}: /unstuck again; through death once more`);
             (0, chat_1.reply)(player, "Повторное возрождение…");
-            player.health = 0;
+            player.kill();
             return;
         }
         unstuckAt.set(player.id, now);
-        console.warn(`${name}: /unstuck; moving them on the spot`);
-        player.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()), { loadScreen: false });
-        (0, chat_1.reply)(player, "Персонаж переставлен. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
+        console.warn(`${name}: /unstuck; shaking them loose (camera, stance, a move on the spot)`);
+        shakeLoose(player, true);
+        (0, chat_1.reply)(player, "Камера и персонаж сброшены. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
     },
 });
 (0, chat_1.registerCommands)(chat_1.AdminLevel.moderator, {
