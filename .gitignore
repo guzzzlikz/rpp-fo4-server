@@ -18,3 +18,8 @@ crashpad*/
 
 # dependencies: only needed to build, not to run
 node_modules/
+
+# local archives and temp files: never committed
+*.rar
+*.zip
+*.7z
