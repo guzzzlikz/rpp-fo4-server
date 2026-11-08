@@ -17,29 +17,35 @@
 ```
 fo4-server/
 ├── docs/                        документация (этот каталог)
-├── server/
-│   ├── FMPServer.exe            Windows-сервер (из релиза, не в git)
-│   ├── server.json              конфиг, создаётся при первом запуске (не в git)
-│   ├── server.example.json      шаблон конфига (в git)
-│   ├── logs/framework.log       лог сервера
+├── server/                      Windows-сервер целиком в git: клонировал и запустил
+│   ├── FMPServer.exe            сервер
+│   ├── libnode.dll              встроенный Node 25.6.1 (без него exe не стартует)
+│   ├── server.json              рабочий конфиг
+│   ├── server.example.json      шаблон конфига
+│   ├── logs/                    логи (не в git)
 │   ├── fmp-data/gamemode.sqlite база аккаунтов и персонажей (не в git, делай бэкапы)
-│   └── fmp-resources/           ресурсы, которые загружает сервер
+│   └── fmp-resources/           ресурсы, которые загружает сервер; собранные dist/ тоже в git
 │       ├── fmp-gamemode/        стандартный gamemode из релиза
-│       └── fmp-healthcheck/     наш ресурс самопроверки
+│       ├── fmp-healthcheck/     наш ресурс самопроверки
+│       └── fmp-asset-demo/      демо стриминга ассетов из релиза
 ├── client/                      лаунчер и клиент (из релиза, не в git)
 ├── server-linux/                Linux-сервер (из релиза, не в git)
 └── fmp-resources/               запасная копия gamemode из релиза (не в git)
 ```
 
-Бинарники релиза в git не хранятся. После клонирования репозитория распакуй поверх него архив релиза FMP; файлы, которые уже есть в git, не перезаписывай.
+Сервер для Windows лежит в git полностью, вместе с собранными ресурсами: `git clone`, затем `server\FMPServer.exe`.
+Клиент (`client/`) и Linux-сервер в репо нет, их берут из архива релиза FMP.
+`node_modules` в git тоже нет, они нужны только для сборки.
 
 ## Первый запуск
 
-```powershell
-# 1. Конфиг
-Copy-Item server\server.example.json server\server.json   # если server.json ещё нет
+Если нужно только запустить сервер, сразу переходи к шагу 3. Шаги 1–2 нужны, когда меняешь код ресурсов.
 
-# 2. Сборка ресурсов
+```powershell
+# 1. Конфиг (server.json уже в репо; шаблон на случай, если его испортили)
+Copy-Item server\server.example.json server\server.json
+
+# 2. Сборка ресурсов (после изменений в src/; собранные dist/ коммитим)
 cd server\fmp-resources\fmp-healthcheck
 npm ci
 npm run build

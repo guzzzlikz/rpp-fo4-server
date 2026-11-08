@@ -1,0 +1,351 @@
+"use strict";
+// Accounts: nobody plays until they have logged in. A player who joins is held in a virtual world of
+// their own at the lobby, where their client flies a cinematic camera over the wasteland behind the
+// login page. Logging in (or registering, the first time a name is seen) brings back the character
+// and the place the account last stood, from the SQLite database. The conversation itself is in
+// src/shared/auth.ts.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.refreshAdminLevel = exports.loggedInPlayers = exports.adminLevel = exports.characterName = exports.isLoggedIn = void 0;
+const node_crypto_1 = require("node:crypto");
+const auth_1 = require("../shared/auth");
+const errors_1 = require("../shared/errors");
+const chat_1 = require("./chat");
+const Creator = __importStar(require("./creator"));
+const Database = __importStar(require("./database"));
+const places_1 = require("./places");
+// Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
+// (core/frontend/main_menu.h, kSessionCell). The move there runs under the join's loading screen,
+// which the client keeps up until the login page is on screen (src/client), and the cells under
+// every shot are loaded around the player.
+const kLobby = places_1.Places.sanctuary;
+// Where a new character starts.
+const kSpawn = places_1.Places.sanctuary;
+// The cinematic behind the login page, flown in a loop, high enough to clear the hills. Every shot
+// stays within two cells of the lobby on each axis (8192 units), the grid the game keeps loaded;
+// Red Rocket and Concord are beyond it and would look into fog.
+const kShots = [
+    // In from the south-east over the river, coming round onto the cul-de-sac.
+    { from: { x: -74500, y: 83500, z: 9500 }, to: { x: -77500, y: 85000, z: 9300 }, lookAt: (0, places_1.above)(places_1.Places.sanctuary.position, 150), seconds: 22 },
+    // A slow arc west of the houses, the bridge road in frame.
+    { from: { x: -86500, y: 91500, z: 9400 }, to: { x: -85500, y: 85500, z: 9200 }, lookAt: (0, places_1.above)(places_1.Places.sanctuary.position, 150), seconds: 20 },
+    // High from the north, off the Vault 111 hill, down over the whole of Sanctuary.
+    { from: { x: -83500, y: 95500, z: 11200 }, to: { x: -79000, y: 94500, z: 10900 }, lookAt: (0, places_1.above)(places_1.Places.sanctuary.position, 300), seconds: 24 },
+];
+// Each player in the lobby is alone in a world of their own, above any a script would use.
+const kLobbyWorldBase = 0x10000;
+const kLoginTimeoutMs = 5 * 60 * 1000;
+// A client that never reports its login camera gone is placed anyway.
+const kArrivalTimeoutMs = 5000;
+// How often a player who was down at login is asked again whether their game has them up.
+const kRespawnPollMs = 250;
+const kAutosaveMs = 2 * 60 * 1000;
+const kHashLength = 64;
+const kSaltBytes = 16;
+const sessions = new Map();
+const identityOf = (player) => sessions.get(player.id)?.identity ?? null;
+const isLoggedIn = (player) => identityOf(player) !== null;
+exports.isLoggedIn = isLoggedIn;
+// Their character's name once logged in; their nickname before.
+const characterName = (player) => identityOf(player)?.characterName ?? player.nickname;
+exports.characterName = characterName;
+const adminLevel = (player) => identityOf(player)?.adminLevel ?? chat_1.AdminLevel.player;
+exports.adminLevel = adminLevel;
+// The players who have logged in.
+const loggedInPlayers = () => [...sessions.values()].filter((session) => session.identity !== null).map((session) => session.player);
+exports.loggedInPlayers = loggedInPlayers;
+// Applies a rank changed in the database to its account's player, if they are on.
+const refreshAdminLevel = (accountName, level) => {
+    for (const session of sessions.values()) {
+        if (session.identity !== null && session.player.nickname.toLowerCase() === accountName.toLowerCase()) {
+            session.identity.adminLevel = level;
+            return session.player;
+        }
+    }
+    return null;
+};
+exports.refreshAdminLevel = refreshAdminLevel;
+const send = (player, event, payload) => {
+    player.emit(event, JSON.stringify(payload));
+};
+const hashPassword = (password, salt) => (0, node_crypto_1.scryptSync)(password, salt, kHashLength).toString("hex");
+const passwordMatches = (password, account) => {
+    const expected = Buffer.from(account.passwordHash, "hex");
+    const actual = (0, node_crypto_1.scryptSync)(password, account.passwordSalt, kHashLength);
+    return expected.length === actual.length && (0, node_crypto_1.timingSafeEqual)(expected, actual);
+};
+const prompt = (session, error = null) => {
+    const registered = Database.findAccount(session.player.nickname) !== null;
+    send(session.player, auth_1.AuthEvents.prompt, { name: session.player.nickname, registered, shots: [...kShots], attemptsLeft: session.attemptsLeft, error });
+};
+const open = (player, characterReady) => {
+    const session = { player, identity: null, arrival: null, attemptsLeft: auth_1.kMaxAttempts, loginTimer: null, characterReady, pendingDocument: null, playSecondsBefore: 0, playingSince: 0 };
+    sessions.set(player.id, session);
+    return session;
+};
+const holdInLobby = (session) => {
+    const player = session.player;
+    player.setVirtualWorld(kLobbyWorldBase + player.id);
+    player.setNametagVisible(false);
+    player.teleport((0, places_1.toVector)(kLobby.position), kLobby.heading, { worldSpace: places_1.kCommonwealth });
+    session.loginTimer = setTimeout(() => {
+        if (sessions.get(player.id) === session && session.identity === null) {
+            player.kick("You took too long to log in");
+        }
+    }, kLoginTimeoutMs);
+};
+const applyDocument = (session) => {
+    if (session.pendingDocument === null || !session.characterReady) {
+        return;
+    }
+    try {
+        session.player.setCharacter(session.pendingDocument);
+    }
+    catch (thrown) {
+        console.error(`${session.player.nickname}: stored character rejected: ${(0, errors_1.errorMessage)(thrown)}`);
+    }
+    session.pendingDocument = null;
+};
+const stopLoginTimer = (session) => {
+    if (session.loginTimer !== null) {
+        clearTimeout(session.loginTimer);
+        session.loginTimer = null;
+    }
+};
+const enterWorld = (session, identity, firstTime) => {
+    const player = session.player;
+    const accountId = identity.accountId;
+    stopLoginTimer(session);
+    session.identity = identity;
+    Database.touchAccount(accountId, player.getIP());
+    const stored = firstTime ? null : Database.findCharacter(accountId);
+    session.pendingDocument = stored?.document ?? null;
+    session.playSecondsBefore = stored?.playSeconds ?? 0;
+    session.playingSince = Date.now();
+    applyDocument(session);
+    // The character's name in their own game (its menus show it, and the SPECIAL menu will not close
+    // without one) and above their head for everyone else.
+    player.setGameName(identity.characterName);
+    player.setNametagText(identity.characterName);
+    player.setNametagVisible(true);
+    // Until the creator has run to its end once, it follows every login.
+    const creating = stored?.created !== true;
+    send(player, auth_1.AuthEvents.done, { name: player.nickname, characterName: identity.characterName, firstTime, creating });
+    console.log(`${player.nickname} ${firstTime ? "registered" : "logged in"} as ${identity.characterName} (account ${accountId})${creating ? ", to the character creator" : ""}`);
+    session.arrival = { stored, timer: setTimeout(() => arrive(session), kArrivalTimeoutMs) };
+};
+// Places a player who logged in: their look, the world everyone shares, where they last stood (or the
+// spawn), then the creator or the welcome. The move shows no loading screen: their client is under
+// black since the cut, their game streams the place in behind it, and `placed` tells the client to
+// fade back in.
+const arrive = (session) => {
+    const arrival = session.arrival;
+    const identity = session.identity;
+    if (arrival === null || identity === null || sessions.get(session.player.id) !== session) {
+        return;
+    }
+    clearTimeout(arrival.timer);
+    session.arrival = null;
+    const player = session.player;
+    const stored = arrival.stored;
+    let creating = stored?.created !== true;
+    if (stored?.appearance != null) {
+        try {
+            player.setAppearance(stored.appearance);
+        }
+        catch (thrown) {
+            console.warn(`${player.nickname}: stored look refused (${(0, errors_1.errorMessage)(thrown)}); making a new one`);
+            creating = true;
+        }
+    }
+    // A player who went down in the lobby is a ragdoll, and a ragdoll does not follow a move: it
+    // stays where it lay while the actor changes cell, and the respawn then stands them up there, in
+    // the void. So they get up first, where they fell, and are placed once their game reports them
+    // alive again.
+    if (player.isDead) {
+        if (arrival.respawning !== true) {
+            player.respawn();
+        }
+        session.arrival = { stored, respawning: true, timer: setTimeout(() => arrive(session), kRespawnPollMs) };
+        return;
+    }
+    player.setVirtualWorld(0);
+    if (stored?.position) {
+        player.teleport((0, places_1.toVector)(stored.position), stored.heading, (0, places_1.teleportSpace)(stored.space), { loadScreen: false });
+    }
+    else {
+        player.teleport((0, places_1.toVector)(kSpawn.position), kSpawn.heading, { worldSpace: places_1.kCommonwealth }, { loadScreen: false });
+    }
+    send(player, auth_1.AuthEvents.placed, null);
+    if (creating) {
+        Creator.begin(player, identity.accountId, identity.characterName);
+    }
+    else {
+        (0, chat_1.reply)(player, `Welcome back, ${identity.characterName}.`);
+    }
+};
+const save = (session) => {
+    if (session.identity === null) {
+        return;
+    }
+    const player = session.player;
+    const position = player.position;
+    Database.saveCharacter(session.identity.accountId, {
+        document: session.characterReady ? player.getCharacter() : null,
+        space: player.getSpace() ?? { worldSpace: places_1.kCommonwealth, interiorCell: 0 },
+        position: { x: position.x, y: position.y, z: position.z },
+        heading: player.heading,
+        playSeconds: session.playSecondsBefore + Math.floor((Date.now() - session.playingSince) / 1000),
+    });
+};
+const register = (session, submitted) => {
+    const { password, confirm, characterName: name } = submitted;
+    const nameError = (0, auth_1.characterNameError)(name);
+    if (nameError !== null) {
+        prompt(session, nameError);
+        return;
+    }
+    if (Database.isCharacterNameTaken(name)) {
+        prompt(session, `${name} is already somebody else`);
+        return;
+    }
+    if (password.length < auth_1.kPasswordMin || password.length > auth_1.kPasswordMax) {
+        prompt(session, `Choose a password of ${auth_1.kPasswordMin} to ${auth_1.kPasswordMax} characters`);
+        return;
+    }
+    if (confirm !== password) {
+        prompt(session, "The passwords do not match");
+        return;
+    }
+    const salt = (0, node_crypto_1.randomBytes)(kSaltBytes).toString("hex");
+    const accountId = Database.createAccount(session.player.nickname, hashPassword(password, salt), salt, session.player.steamId, name);
+    enterWorld(session, { accountId, characterName: name, adminLevel: chat_1.AdminLevel.player }, true);
+};
+const logIn = (session, account, submitted) => {
+    if (passwordMatches(submitted.password, account)) {
+        const level = (0, chat_1.isAdminLevel)(account.adminLevel) ? account.adminLevel : chat_1.AdminLevel.player;
+        enterWorld(session, { accountId: account.id, characterName: account.characterName ?? account.name, adminLevel: level }, false);
+        return;
+    }
+    session.attemptsLeft--;
+    console.warn(`${account.name}: wrong password from ${session.player.getIP()}, ${session.attemptsLeft} attempts left`);
+    if (session.attemptsLeft <= 0) {
+        session.player.kick("Too many failed logins");
+        return;
+    }
+    prompt(session, "Wrong password");
+};
+Events.on("playerConnect", (player) => {
+    open(player, false);
+});
+Events.on("playerReady", (player) => {
+    const session = sessions.get(player.id);
+    if (session !== undefined && session.identity === null) {
+        holdInLobby(session);
+    }
+});
+Events.on("playerCharacterLoad", (player) => {
+    const session = sessions.get(player.id);
+    if (session !== undefined) {
+        session.characterReady = true;
+        applyDocument(session);
+    }
+});
+// A look changed in the world (a barber, a script) is the character's from then on. The creator stores
+// its own once its editor has closed.
+Events.on("playerAppearanceChange", (player) => {
+    const identity = identityOf(player);
+    const appearance = player.getAppearance();
+    if (identity !== null && appearance !== null && !Creator.isCreating(player)) {
+        Database.saveAppearance(identity.accountId, appearance);
+    }
+});
+Events.on("playerDisconnect", (player) => {
+    const session = sessions.get(player.id);
+    if (session === undefined) {
+        return;
+    }
+    save(session);
+    stopLoginTimer(session);
+    if (session.arrival !== null) {
+        clearTimeout(session.arrival.timer);
+    }
+    sessions.delete(player.id);
+});
+// A player with no session was already in the world when the gamemode (re)started: their character
+// is established, and they log in again like anybody else.
+Events.onClient(auth_1.AuthEvents.hello, (sender) => {
+    const player = sender;
+    const known = sessions.get(player.id);
+    const session = known ?? open(player, true);
+    if (session.identity !== null) {
+        return;
+    }
+    if (known === undefined) {
+        holdInLobby(session);
+    }
+    prompt(session);
+});
+Events.onClient(auth_1.AuthEvents.cut, (sender) => {
+    const session = sessions.get(sender.id);
+    if (session !== undefined) {
+        arrive(session);
+    }
+});
+Events.onClient(auth_1.AuthEvents.submit, (sender, payload) => {
+    const session = sessions.get(sender.id);
+    if (session === undefined || session.identity !== null) {
+        return;
+    }
+    const account = Database.findAccount(session.player.nickname);
+    const submitted = (0, auth_1.readAuthSubmit)(payload);
+    if (account === null) {
+        register(session, submitted);
+    }
+    else {
+        logIn(session, account, submitted);
+    }
+});
+const autosave = setInterval(() => {
+    sessions.forEach(save);
+}, kAutosaveMs);
+Events.on("resourceStop", (resourceName) => {
+    if (resourceName !== "fmp-gamemode") {
+        return;
+    }
+    clearInterval(autosave);
+    sessions.forEach(save);
+    Database.close();
+});

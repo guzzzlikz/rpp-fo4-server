@@ -1,24 +1,20 @@
-# Allowlist: the FMP release (binaries, client, linux server, vendor copies) is unpacked over this
-# repo and never committed. Only our docs, config template and resources are tracked.
+# The Windows server is committed whole, so a clone runs as is: FMPServer.exe, libnode.dll,
+# crashpad_handler.exe, server.json and the built resources (dist/).
+# Left out: the game client, the Linux server, the spare gamemode copy, and anything the server
+# generates or that holds player data.
 
-/*
-!/.gitignore
-!/.gitattributes
-!/README.md
-!/docs/
-!/server/
+# FMP release parts we do not run from this repo
+/client/
+/server-linux/
+/fmp-resources/
 
-/server/*
-!/server/server.example.json
-!/server/fmp-resources/
-
-/server/fmp-resources/*
-!/server/fmp-resources/fmp-gamemode/
-!/server/fmp-resources/fmp-healthcheck/
-
-# build output and deps in every resource
-node_modules/
-dist/
+# generated at runtime
+/server/logs/
+/server/.packages/
+/server/fmp-data/
+/server/game-data/
 *.log
-*.db
-*.sqlite*
+crashpad*/
+
+# dependencies: only needed to build, not to run
+node_modules/
