@@ -1,0 +1,4 @@
+{
+  "//": "Эмоции для колеса (клавиша P) и /emote. Имя -> { idle: EditorID анимации из Fallout4.esm, label: подпись в колесе }. Проверить EditorID в игре: /emote try <EditorID> (admin). После правки: ensure fmp-gamemode. Подробно: docs/resources/fmp-gamemode.md",
+  "salute": { "idle": "Salute", "label": "Отдать честь" }
+}

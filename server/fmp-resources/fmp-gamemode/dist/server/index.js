@@ -8,6 +8,7 @@ require("./admin");
 require("./character");
 const chat_1 = require("./chat");
 require("./commands");
+require("./emotes");
 require("./explosives");
 require("./powerarmor");
 require("./respawn");

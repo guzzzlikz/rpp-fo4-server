@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Эмоции</title>
+<!--
+  The emote wheel. Driven by src/client/emotes.ts:
+    page -> script   callEvent("wheel:ready"), callEvent("wheel:pick", "<name>"), callEvent("wheel:stop"), callEvent("wheel:close")
+    script -> page   "wheel:open" { emotes: [{ name, label }] }
+  Hover picks a segment by the mouse's angle from the centre; the centre circle is "stop".
+-->
+<style>
+  :root {
+    --ink: #e8f5dc;
+    --dim: rgba(232, 245, 220, 0.6);
+    --accent: #9be36a;
+    --accent-ink: #0d1a08;
+    --ring: rgba(8, 12, 6, 0.72);
+    --line: rgba(232, 245, 220, 0.16);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; overflow: hidden; background: transparent; color: var(--ink); font: 15px/1.3 "Segoe UI", Roboto, Arial, sans-serif; user-select: none; cursor: default; }
+  .shade { position: fixed; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 60%); }
+  svg { position: fixed; top: 50%; left: 50%; width: min(560px, 80vmin); height: min(560px, 80vmin); transform: translate(-50%, -50%); overflow: visible; }
+  .seg { fill: var(--ring); stroke: var(--line); stroke-width: 1; transition: fill 0.08s ease; }
+  .seg.hot { fill: var(--accent); }
+  .label { fill: var(--ink); font-size: 15px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .label.hot { fill: var(--accent-ink); }
+  .hub { fill: rgba(8, 12, 6, 0.85); stroke: var(--line); }
+  .hub.hot { fill: #ff8f6b; }
+  .hub-text { fill: var(--dim); font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .hub-text.hot { fill: #1a0d08; }
+  .hint { position: fixed; left: 0; right: 0; bottom: 8vh; text-align: center; color: var(--dim); font-size: 13px; }
+  .empty { fill: var(--dim); font-size: 14px; text-anchor: middle; }
+</style>
+</head>
+<body>
+<div class="shade"></div>
+<svg id="wheel" viewBox="-200 -200 400 400"></svg>
+<div class="hint">Клик: выбрать · центр: остановить · P, Esc или правая кнопка: закрыть</div>
+<script>
+  const NS = "http://www.w3.org/2000/svg";
+  const R_OUT = 190, R_IN = 62;
+  const svg = document.getElementById("wheel");
+  let emotes = [];
+  let hot = null; // index of the hovered segment, "hub", or null
+
+  const el = (name, attrs) => {
+    const node = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  };
+  const point = (r, a) => [r * Math.sin(a), -r * Math.cos(a)];
+
+  // A ring segment from angle a0 to a1 (radians, clockwise from the top).
+  const segment = (a0, a1) => {
+    const [x0, y0] = point(R_OUT, a0), [x1, y1] = point(R_OUT, a1);
+    const [x2, y2] = point(R_IN, a1), [x3, y3] = point(R_IN, a0);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    return `M${x0} ${y0} A${R_OUT} ${R_OUT} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${R_IN} ${R_IN} 0 ${large} 0 ${x3} ${y3} Z`;
+  };
+
+  function render() {
+    svg.textContent = "";
+    const n = emotes.length;
+    if (n === 0) {
+      svg.appendChild(el("text", { class: "empty", x: 0, y: -110 })).textContent = "Эмоций пока нет";
+    }
+    const step = (2 * Math.PI) / Math.max(n, 1);
+    emotes.forEach((emote, i) => {
+      // One emote fills the ring: drawn as two halves, since one arc cannot close a circle.
+      const a0 = i * step - step / 2, a1 = a0 + step;
+      const d = n === 1 ? segment(-Math.PI, 0) + segment(0, Math.PI) : segment(a0, a1);
+      svg.appendChild(el("path", { d, class: "seg" + (hot === i ? " hot" : "") }));
+      const [lx, ly] = point((R_OUT + R_IN) / 2, n === 1 ? 0 : i * step);
+      const text = svg.appendChild(el("text", { x: lx, y: ly, class: "label" + (hot === i ? " hot" : "") }));
+      text.textContent = emote.label;
+    });
+    svg.appendChild(el("circle", { cx: 0, cy: 0, r: R_IN - 6, class: "hub" + (hot === "hub" ? " hot" : "") }));
+    svg.appendChild(el("text", { x: 0, y: 0, class: "hub-text" + (hot === "hub" ? " hot" : "") })).textContent = "Стоп";
+  }
+
+  // Which part of the wheel the mouse is over, from its offset to the centre in viewBox units.
+  function hitTest(event) {
+    const box = svg.getBoundingClientRect();
+    const scale = 400 / box.width;
+    const x = (event.clientX - (box.left + box.width / 2)) * scale;
+    const y = (event.clientY - (box.top + box.height / 2)) * scale;
+    const r = Math.hypot(x, y);
+    if (r < R_IN) return "hub";
+    if (r > R_OUT + 60 || emotes.length === 0) return null;
+    const n = emotes.length;
+    const step = (2 * Math.PI) / n;
+    let a = Math.atan2(x, -y); // clockwise from the top
+    if (a < 0) a += 2 * Math.PI;
+    return Math.floor(((a + step / 2) % (2 * Math.PI)) / step) % n;
+  }
+
+  window.addEventListener("mousemove", (event) => {
+    const next = hitTest(event);
+    if (next !== hot) {
+      hot = next;
+      render();
+    }
+  });
+
+  window.addEventListener("mousedown", (event) => {
+    if (event.button === 2) {
+      callEvent("wheel:close", null);
+      return;
+    }
+    if (event.button !== 0) return;
+    const target = hitTest(event);
+    if (target === "hub") callEvent("wheel:stop", null);
+    else if (typeof target === "number") callEvent("wheel:pick", emotes[target].name);
+    else callEvent("wheel:close", null);
+  });
+
+  window.addEventListener("contextmenu", (event) => event.preventDefault());
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" || event.code === "KeyP") {
+      event.preventDefault();
+      callEvent("wheel:close", null);
+    }
+  });
+
+  window.addEventListener("wheel:open", (event) => {
+    emotes = (event.detail && Array.isArray(event.detail.emotes)) ? event.detail.emotes : [];
+    hot = null;
+    render();
+  });
+
+  render();
+  callEvent("wheel:ready", null);
+</script>
+</body>
+</html>

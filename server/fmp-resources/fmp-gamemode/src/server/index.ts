@@ -7,6 +7,7 @@ import "./admin";
 import "./character";
 import { AdminLevel, type Command, commandsFor, findCommand, kAdminLevelNames, registerCommands, reply } from "./chat";
 import "./commands";
+import "./emotes";
 import "./explosives";
 import "./powerarmor";
 import "./respawn";
