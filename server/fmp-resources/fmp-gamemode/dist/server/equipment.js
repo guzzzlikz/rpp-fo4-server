@@ -11,7 +11,7 @@
 // pieces, and equipping those as clothes warps the body into a broken suit. So nothing is sampled
 // while they are in one, and nothing is put on them.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.begin = exports.untrack = exports.lastEquipment = exports.restoreAfterRespawn = exports.track = void 0;
+exports.begin = exports.untrack = exports.lastEquipment = exports.restoreAfterRespawn = exports.freeze = exports.track = void 0;
 const kSampleMs = 5000;
 // Give the player's game a moment after the respawn or the move before asking it to equip.
 const kRestoreDelayMs = 1000;
@@ -77,11 +77,25 @@ const track = (player, stored) => {
     restore(player, stored, "login");
 };
 exports.track = track;
-// From respawn.ts, once a player who was down is up again.
+// From respawn.ts as a player goes down: what they had stays as it was, unsampled, until it is put
+// back on. Between the server having them up and their game reporting them standing, a sample would
+// record the empty hands the death left. Bounded, for a client that never reports.
+const kFreezeMaxMs = 60000;
+const freeze = (player) => {
+    if (lastKnown.has(player.id)) {
+        holdUntil.set(player.id, Date.now() + kFreezeMaxMs);
+    }
+};
+exports.freeze = freeze;
+// From respawn.ts, once the player's own game reports them standing again after a death. Not sooner:
+// an equip while their game still plays the get-up left them lying there for good.
 const restoreAfterRespawn = (player) => {
     const equipment = lastKnown.get(player.id);
     if (equipment !== undefined) {
         restore(player, equipment, "respawn");
+    }
+    else {
+        holdUntil.delete(player.id);
     }
 };
 exports.restoreAfterRespawn = restoreAfterRespawn;

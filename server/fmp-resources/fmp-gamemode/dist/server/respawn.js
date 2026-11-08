@@ -40,10 +40,7 @@ const tryRespawn = (player, attempt) => {
         if (attempt > 2) {
             console.log(`${(0, accounts_1.accountName)(player)} is up after ${attempt - 1} respawn attempts`);
         }
-        // Up again after a respawn we sent: what they held and wore goes back on.
-        if (attempt > 1) {
-            (0, equipment_1.restoreAfterRespawn)(player);
-        }
+        // Their equipment goes back on only once their own game reports them standing (LifeEvents.up).
         return;
     }
     if (attempt > kMaxAttempts) {
@@ -63,11 +60,37 @@ const schedule = (player, delayMs) => {
 };
 Events.on("playerDeath", (player, killer) => {
     console.log(killer !== null ? `${(0, accounts_1.accountName)(killer)} killed ${(0, accounts_1.accountName)(player)}` : `${(0, accounts_1.accountName)(player)} died`);
+    (0, equipment_1.freeze)(player);
+    awaitingUp.add(player.id);
     schedule(player, kRespawnDelayMs);
 });
 Events.on("playerDisconnect", (player) => {
     cancel(player);
     stuck.delete(player.id);
+    awaitingUp.delete(player.id);
+});
+// --- their game has them standing again ------------------------------------------------------------
+// Players who died and whose game has not reported them standing since.
+const awaitingUp = new Set();
+// Their game may report standing a moment before the server has them alive: look again this soon.
+const kUpRecheckMs = 1500;
+const onUp = (player, recheck) => {
+    if (isGone(player) || !awaitingUp.has(player.id)) {
+        return;
+    }
+    if (player.isDead) {
+        if (recheck) {
+            setTimeout(() => onUp(player, false), kUpRecheckMs);
+        }
+        return;
+    }
+    awaitingUp.delete(player.id);
+    stuck.delete(player.id);
+    console.log(`${(0, accounts_1.accountName)(player)}: their game has them standing; equipment goes back on`);
+    (0, equipment_1.restoreAfterRespawn)(player);
+};
+Events.onClient(life_1.LifeEvents.up, (sender) => {
+    onUp(sender, true);
 });
 // --- their game shows them dead while the server has them up --------------------------------------
 // A report this long after the last one starts a new incident, from the first step.

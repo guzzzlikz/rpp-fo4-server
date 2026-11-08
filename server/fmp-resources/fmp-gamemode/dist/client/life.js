@@ -16,18 +16,21 @@ Events.on("localPlayerDeath", () => {
     lastReport = 0;
     console.log("[life] down");
 });
-Events.on("localPlayerRespawn", () => {
-    if (downSince !== null) {
-        console.log(`[life] up after ${secondsSince(downSince)} s`);
+// Tells the server this game has the player standing again, once per death.
+const reportUp = (how) => {
+    if (downSince === null) {
+        return;
     }
+    console.log(`[life] up after ${secondsSince(downSince)} s${how}`);
     downSince = null;
+    Events.emitServer(life_1.LifeEvents.up);
+};
+Events.on("localPlayerRespawn", () => {
+    reportUp("");
 });
 setInterval(() => {
     if (!LocalPlayer.isDead()) {
-        if (downSince !== null) {
-            console.log(`[life] up after ${secondsSince(downSince)} s (no respawn event)`);
-            downSince = null;
-        }
+        reportUp(" (no respawn event)");
         return;
     }
     if (downSince === null) {

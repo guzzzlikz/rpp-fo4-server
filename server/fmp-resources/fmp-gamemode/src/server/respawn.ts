@@ -11,7 +11,7 @@
 import { LifeEvents, type LifeStuck, readLifeStuck } from "../shared/life";
 import { accountName } from "./accounts";
 import { AdminLevel, registerCommands, reply } from "./chat";
-import { restoreAfterRespawn } from "./equipment";
+import { freeze as freezeEquipment, restoreAfterRespawn } from "./equipment";
 import { teleportSpace } from "./places";
 import { findPlayer } from "./players";
 
@@ -44,10 +44,7 @@ const tryRespawn = (player: Player, attempt: number): void => {
         if (attempt > 2) {
             console.log(`${accountName(player)} is up after ${attempt - 1} respawn attempts`);
         }
-        // Up again after a respawn we sent: what they held and wore goes back on.
-        if (attempt > 1) {
-            restoreAfterRespawn(player);
-        }
+        // Their equipment goes back on only once their own game reports them standing (LifeEvents.up).
         return;
     }
     if (attempt > kMaxAttempts) {
@@ -69,12 +66,42 @@ const schedule = (player: Player, delayMs: number): void => {
 
 Events.on("playerDeath", (player: Player, killer: Player | null): void => {
     console.log(killer !== null ? `${accountName(killer)} killed ${accountName(player)}` : `${accountName(player)} died`);
+    freezeEquipment(player);
+    awaitingUp.add(player.id);
     schedule(player, kRespawnDelayMs);
 });
 
 Events.on("playerDisconnect", (player: Player): void => {
     cancel(player);
     stuck.delete(player.id);
+    awaitingUp.delete(player.id);
+});
+
+// --- their game has them standing again ------------------------------------------------------------
+
+// Players who died and whose game has not reported them standing since.
+const awaitingUp = new Set<number>();
+// Their game may report standing a moment before the server has them alive: look again this soon.
+const kUpRecheckMs = 1500;
+
+const onUp = (player: Player, recheck: boolean): void => {
+    if (isGone(player) || !awaitingUp.has(player.id)) {
+        return;
+    }
+    if (player.isDead) {
+        if (recheck) {
+            setTimeout((): void => onUp(player, false), kUpRecheckMs);
+        }
+        return;
+    }
+    awaitingUp.delete(player.id);
+    stuck.delete(player.id);
+    console.log(`${accountName(player)}: their game has them standing; equipment goes back on`);
+    restoreAfterRespawn(player);
+};
+
+Events.onClient(LifeEvents.up, (sender: unknown): void => {
+    onUp(sender as Player, true);
 });
 
 // --- their game shows them dead while the server has them up --------------------------------------
