@@ -7,6 +7,7 @@
 
 import { AuthEvents, type AuthPrompt, type AuthSubmit, type CreatorMenuClosed, isCreatorMenu } from "../shared/auth";
 import * as Cinematic from "./cinematic";
+import "./life";
 import * as Login from "./login";
 
 const kHelloRetryMs = 500;
