@@ -30,29 +30,44 @@ const close = (): void => {
     }
 };
 
-// Shows the wheel once the page can draw it.
+// Hands the page the list; before it has loaded, its ready event does this instead.
+const pushList = (): void => {
+    if (isOpen && view >= 0 && pageReady) {
+        Web.emit(view, kPageEvents.open, { emotes });
+    }
+};
+
+// Shows the wheel at once. It is not held back until the page has loaded: a view created hidden may
+// never load while hidden, and then the wheel never showed at all.
 const present = (): void => {
-    if (!isOpen || view < 0 || !pageReady) {
+    if (!isOpen || view < 0) {
         return;
     }
-    Web.emit(view, kPageEvents.open, { emotes });
     Web.showView(view);
     Web.focusView(view, true);
+    pushList();
 };
 
 const create = (): boolean => {
     const screen: { width: number; height: number } = Web.getScreenSize();
     try {
-        view = Web.createView(kPage, { width: screen.width, height: screen.height, x: 0, y: 0, zIndex: kZIndex, visible: false, focus: false });
+        // Created visible, as the login page is, so it loads; it is hidden again once it has.
+        view = Web.createView(kPage, { width: screen.width, height: screen.height, x: 0, y: 0, zIndex: kZIndex, visible: true, focus: false });
     } catch (thrown: unknown) {
-        console.error(`could not create the emote wheel: ${errorMessage(thrown)}`);
+        console.error(`[emotes] could not create the wheel: ${errorMessage(thrown)}`);
         view = -1;
         return false;
     }
+    console.log(`[emotes] wheel view ${view} created`);
     pageReady = false;
     Web.on(view, kPageEvents.ready, (): void => {
         pageReady = true;
-        present();
+        console.log("[emotes] wheel page loaded");
+        if (isOpen) {
+            pushList();
+        } else {
+            Web.hideView(view);
+        }
     });
     Web.on(view, kPageEvents.pick, (payload?: unknown): void => {
         close();
@@ -70,8 +85,10 @@ const create = (): boolean => {
 
 const open = (): void => {
     if (!loggedIn || LocalPlayer.isDead()) {
+        console.log(`[emotes] P ignored: ${!loggedIn ? "not logged in" : "down"}`);
         return;
     }
+    console.log(`[emotes] opening the wheel (${emotes.length} emote(s))`);
     if (view < 0 && !create()) {
         return;
     }
@@ -82,24 +99,29 @@ const open = (): void => {
     present();
 };
 
+// On request, and again whenever staff change the list (/emote add, /emote remove).
 Events.on(EmoteEvents.list, (payload: unknown): void => {
     emotes = readEmoteList(payload).emotes;
-    if (isOpen && view >= 0 && pageReady) {
-        Web.emit(view, kPageEvents.open, { emotes });
-    }
+    console.log(`[emotes] list: ${emotes.map((emote: EmoteEntry): string => emote.name).join(", ") || "empty"}`);
+    pushList();
 });
 
 Events.on(AuthEvents.done, (): void => {
     loggedIn = true;
     askList();
+    // Loaded now, while nothing is asked of it, so the first P shows a page that is already there.
+    if (view < 0) {
+        create();
+    }
 });
 
 // While the page has focus it takes the keys itself (P and Esc close it there); this fires only while
 // the game has input.
-Key.bind(kKey, "down", (): void => {
+const bound: boolean = Key.bind(kKey, "down", (): void => {
     if (isOpen) {
         close();
     } else {
         open();
     }
 });
+console.log(`[emotes] key ${kKey.toUpperCase()} ${bound ? "bound" : "NOT bound"} to the wheel`);

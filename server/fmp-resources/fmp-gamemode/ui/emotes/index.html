@@ -32,6 +32,8 @@
   .hub-text.hot { fill: #1a0d08; }
   .hint { position: fixed; left: 0; right: 0; bottom: 8vh; text-align: center; color: var(--dim); font-size: 13px; }
   .empty { fill: var(--dim); font-size: 14px; text-anchor: middle; }
+  /* Nothing is drawn until the script opens the wheel: the view loads visible, over the game. */
+  body:not(.open) > * { display: none; }
 </style>
 </head>
 <body>
@@ -119,7 +121,7 @@
   window.addEventListener("contextmenu", (event) => event.preventDefault());
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" || event.code === "KeyP") {
+    if (event.key === "Escape" || event.code === "KeyP" || event.key === "p" || event.key === "P" || event.key === "з" || event.key === "З") {
       event.preventDefault();
       callEvent("wheel:close", null);
     }
@@ -128,6 +130,7 @@
   window.addEventListener("wheel:open", (event) => {
     emotes = (event.detail && Array.isArray(event.detail.emotes)) ? event.detail.emotes : [];
     hot = null;
+    document.body.classList.add("open");
     render();
   });
 
