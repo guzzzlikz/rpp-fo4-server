@@ -6,7 +6,7 @@
     "maxplayers": 32,
     "mod": {
         "game": "fo4",
-        "game_data_path": "",
+        "game_data_path": "game-data",
         "stream_range": 8192.0
     },
     "password": "",

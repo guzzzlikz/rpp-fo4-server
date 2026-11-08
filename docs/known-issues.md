@@ -21,6 +21,18 @@ Failed to start resource fmp-gamemode: Error: A dynamic link library (DLL) initi
 
 **Как проверить, что исправлено:** в логе есть `Started JS resource: fmp-gamemode` и нет `Failed to start resource fmp-gamemode`.
 
+## FMPServer.exe закрывается сразу после запуска
+
+**Симптом:** окно консоли закрывается примерно через секунду, в `server/logs/` ничего нового не появляется. Код выхода `0xC0000409`. Если вывод перенаправлен в файл, последняя строка: `[World] World at 12.00h, ...`.
+
+**Причина.** Если в `server.json` пустой `mod.game_data_path`, сервер сам ищет игру через реестр (`HKLM\SOFTWARE\WOW6432Node\Bethesda Softworks\Fallout4` → `Installed Path`). Когда там остался путь от старой установки, а диск или папка по этому пути отвечает ошибкой (битая ссылка, отключённый диск: «A device which does not exist was specified»), сервер падает. Просто отсутствующую папку он переживает, а такую ошибку нет.
+
+**Решение.** Всегда указывать `mod.game_data_path` явно, а не оставлять пустым:
+- без игры подойдёт `"game-data"`, относительный путь от папки `server/` (так сделано в `server.example.json`). Папки может не быть;
+- с игрой нужен путь к её `Data`, например `"D:\\SteamLibrary\\steamapps\\common\\Fallout 4\\Data"`.
+
+**Как проверить:** сервер не закрывается, в логе есть `[GameData] ... No Fallout4.esm in game-data` и `FMP Server successfully started`.
+
 ## NPC не синхронизируются
 
 **Симптом:** `No Fallout4.esm in ...\Fallout 4\Data. NPCs are not synced`.
