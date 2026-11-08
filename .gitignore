@@ -1,0 +1,24 @@
+# Allowlist: the FMP release (binaries, client, linux server, vendor copies) is unpacked over this
+# repo and never committed. Only our docs, config template and resources are tracked.
+
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/docs/
+!/server/
+
+/server/*
+!/server/server.example.json
+!/server/fmp-resources/
+
+/server/fmp-resources/*
+!/server/fmp-resources/fmp-gamemode/
+!/server/fmp-resources/fmp-healthcheck/
+
+# build output and deps in every resource
+node_modules/
+dist/
+*.log
+*.db
+*.sqlite*

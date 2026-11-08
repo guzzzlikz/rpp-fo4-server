@@ -1,0 +1,27 @@
+{
+  "//": "Server half. CommonJS because resources load through require(). Client half has its own config in src/client: the server and client declarations disagree about Player and cannot be loaded together.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+
+    "rootDir": "src",
+    "outDir": "dist",
+
+    "strict": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "sourceMap": false,
+    "newLine": "lf",
+
+    "types": ["@falloutmp/types/server"]
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"]
+}

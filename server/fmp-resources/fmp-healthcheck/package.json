@@ -1,0 +1,33 @@
+{
+  "name": "fmp-healthcheck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Startup self-test and liveness probe: checks the scripting runtime on start, answers `hc` in the server console and round-trips a ping from each player's game",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "watch:client": "tsc -p src/client/tsconfig.json --watch",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
+  },
+  "devDependencies": {
+    "@falloutmp/types": "0.2.5",
+    "typescript": "^5.9.2"
+  },
+  "mafiahub": {
+    "category": "test",
+    "serverScripts": [
+      "dist/server/index.js"
+    ],
+    "clientScripts": [
+      "dist/client/index.js"
+    ],
+    "files": [
+      "dist/client/**",
+      "dist/shared/**"
+    ],
+    "exports": [
+      "status"
+    ],
+    "errorBehavior": "stop"
+  }
+}

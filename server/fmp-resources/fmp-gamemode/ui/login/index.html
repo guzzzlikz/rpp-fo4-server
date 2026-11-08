@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Login</title>
+<!--
+  The login page over the cinematic camera. Driven by src/client/login.ts:
+    page -> script   callEvent("login:ready", null), callEvent("login:submit", "{password, confirm, characterName}")
+    script -> page   "login:state" { name, registered, attemptsLeft, error, busy, done }
+  The background stays transparent: the game is the picture, the page only darkens one side of it.
+-->
+<style>
+  :root {
+    --ink: #e8f5dc;
+    --dim: rgba(232, 245, 220, 0.62);
+    --faint: rgba(232, 245, 220, 0.18);
+    --accent: #9be36a;
+    --accent-ink: #0d1a08;
+    --danger: #ff8f6b;
+    --panel: rgba(8, 12, 6, 0.55);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; overflow: hidden; background: transparent; color: var(--ink); font: 16px/1.45 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; user-select: none; }
+
+  .shade {
+    position: fixed; inset: 0;
+    background:
+      linear-gradient(90deg, rgba(4, 7, 3, 0.88) 0%, rgba(4, 7, 3, 0.55) 34%, rgba(4, 7, 3, 0) 62%),
+      radial-gradient(ellipse at 70% 50%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.45) 100%);
+    transition: opacity 0.9s ease;
+  }
+  .scan { position: fixed; inset: 0; pointer-events: none; opacity: 0.06; background: repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 3px); }
+
+  main {
+    position: fixed; top: 50%; left: clamp(32px, 7vw, 140px);
+    width: min(400px, calc(100vw - 64px));
+    transform: translateY(-50%);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  body.done main { opacity: 0; transform: translate(-24px, -50%); }
+  body.done .shade { opacity: 0; }
+
+  .kicker { font: 600 12px/1 Consolas, "Cascadia Mono", monospace; letter-spacing: 0.32em; text-transform: uppercase; color: var(--accent); }
+  h1 { margin-top: 14px; font-size: clamp(30px, 3.2vw, 44px); line-height: 1.08; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .lead { margin-top: 10px; color: var(--dim); max-width: 34ch; }
+
+  form { margin-top: 30px; padding: 22px; border: 1px solid var(--faint); border-radius: 6px; background: var(--panel); backdrop-filter: blur(6px); }
+  .who { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--faint); }
+  .who span { font-size: 13px; color: var(--dim); }
+  .who strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 6px; }
+  .field + .field { margin-top: 14px; }
+  input {
+    width: 100%; height: 44px; padding: 0 14px;
+    font: inherit; color: var(--ink);
+    background: rgba(0, 0, 0, 0.4); border: 1px solid var(--faint); border-radius: 4px; outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(155, 227, 106, 0.18); }
+  .hidden { display: none; }
+
+  .error { min-height: 20px; margin-top: 12px; font-size: 14px; color: var(--danger); }
+
+  button {
+    position: relative; width: 100%; height: 46px; margin-top: 8px;
+    font-family: inherit; font-size: 14px; font-weight: 700; line-height: 1; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 4px; cursor: pointer;
+    transition: filter 0.15s ease, opacity 0.15s ease;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  button.busy { color: transparent; }
+  button.busy::after {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    border: 2px solid var(--accent-ink); border-right-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .foot { margin-top: 14px; font-size: 12px; color: var(--dim); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: 0s !important; } }
+</style>
+</head>
+<body>
+<div class="shade"></div>
+<div class="scan"></div>
+<main>
+  <div class="kicker">Fallout Multiplayer</div>
+  <h1 id="title">Welcome to the Commonwealth</h1>
+  <p class="lead" id="lead">Connecting to the server&hellip;</p>
+
+  <form id="form" autocomplete="off" novalidate>
+    <div class="who"><span>Signing in as</span><strong id="name">&hellip;</strong></div>
+    <div class="field hidden" id="character-field">
+      <label for="character">Character name</label>
+      <input id="character" type="text" maxlength="33" placeholder="John Smith" spellcheck="false" disabled>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" maxlength="128" disabled>
+    </div>
+    <div class="field hidden" id="confirm-field">
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" type="password" maxlength="128" disabled>
+    </div>
+    <div class="error" id="error" role="alert"></div>
+    <button id="submit" type="submit" disabled>Log in</button>
+    <p class="foot" id="foot"></p>
+  </form>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), character = $("character"), password = $("password"), confirm = $("confirm"), button = $("submit");
+  let state = null;
+
+  function render() {
+    const registered = state.registered;
+    $("title").textContent = registered ? "Welcome back" : "Welcome to the Commonwealth";
+    $("lead").textContent = registered ? "Log in to pick up where you left off." : "This name is new here. Name your character and choose a password.";
+    $("name").textContent = state.name;
+    $("character-field").classList.toggle("hidden", registered);
+    $("confirm-field").classList.toggle("hidden", registered);
+    button.textContent = registered ? "Log in" : "Create account";
+    button.classList.toggle("busy", state.busy);
+    $("error").textContent = state.error || "";
+    $("foot").textContent = registered && state.attemptsLeft < 5 ? `${state.attemptsLeft} attempts left` : "";
+
+    const locked = state.busy || state.done;
+    character.disabled = password.disabled = confirm.disabled = button.disabled = locked;
+    document.body.classList.toggle("done", state.done);
+    if (!locked) {
+      if (state.error) {
+        password.value = "";
+        confirm.value = "";
+      }
+      (!registered && !character.value.trim() ? character : password).focus();
+    }
+  }
+
+  window.addEventListener("login:state", (event) => {
+    state = event.detail;
+    render();
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (state === null || state.busy || state.done) {
+      return;
+    }
+    if (!state.registered && !character.value.trim()) {
+      $("error").textContent = "Name your character";
+      return;
+    }
+    if (!password.value) {
+      $("error").textContent = "Enter your password";
+      return;
+    }
+    if (!state.registered && confirm.value !== password.value) {
+      $("error").textContent = "The passwords do not match";
+      return;
+    }
+    callEvent("login:submit", JSON.stringify({ password: password.value, confirm: state.registered ? "" : confirm.value, characterName: state.registered ? "" : character.value }));
+  });
+
+  callEvent("login:ready", null);
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "//": "The client half, beside its own sources so an editor opening one finds the right program. Same options as the root config, against the client declarations instead: the two sets disagree about `Player` and cannot be loaded together. Both compile ../shared, which touches no global, into dist/shared.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+
+    "rootDir": "..",
+    "outDir": "../../dist",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "sourceMap": false,
+    "newLine": "lf",
+
+    "types": ["@falloutmp/types/client"]
+  },
+  "include": ["**/*.ts", "../shared/**/*.ts"]
+}

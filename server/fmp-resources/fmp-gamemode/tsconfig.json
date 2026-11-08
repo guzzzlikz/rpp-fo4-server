@@ -1,0 +1,28 @@
+{
+  "//": "CommonJS because a resource is loaded through require(). The server runs resources in a full Node runtime, so `types` names Node beside the server declarations. skipLibCheck because the two declare their own global `console`; our sources are still checked in full.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+
+    "rootDir": "src",
+    "outDir": "dist",
+
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "sourceMap": false,
+    "newLine": "lf",
+
+    "types": ["@falloutmp/types/server", "node"]
+  },
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"]
+}

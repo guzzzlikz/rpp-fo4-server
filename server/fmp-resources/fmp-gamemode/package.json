@@ -1,0 +1,36 @@
+{
+  "name": "fmp-gamemode",
+  "version": "0.1.0",
+  "private": true,
+  "author": "MafiaHub",
+  "description": "Default Fallout Multiplayer gamemode: a base roleplay server with accounts in SQLite and a CEF login over a cinematic camera, written against the public scripting API",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",
+    "watch": "tsc -p tsconfig.json --watch",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "watch:client": "tsc -p src/client/tsconfig.json --watch"
+  },
+  "devDependencies": {
+    "@falloutmp/types": "0.2.5",
+    "@types/better-sqlite3": "^9.6.0",
+    "typescript": "^5.9.2"
+  },
+  "mafiahub": {
+    "category": "example",
+    "serverScripts": [
+      "dist/server/index.js"
+    ],
+    "clientScripts": [
+      "dist/client/index.js"
+    ],
+    "files": [
+      "dist/client/**",
+      "dist/shared/**",
+      "ui/**"
+    ],
+    "priority": 10
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  }
+}
