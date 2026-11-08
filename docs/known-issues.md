@@ -33,6 +33,14 @@ Failed to start resource fmp-gamemode: Error: A dynamic link library (DLL) initi
 
 **Как проверить:** сервер не закрывается, в логе есть `[GameData] ... No Fallout4.esm in game-data` и `FMP Server successfully started`.
 
+## Ресурсы не грузятся, если в пути к серверу есть кириллица
+
+**Симптом:** `Failed to start resource ...: Cannot find module 'C:/Users/пїЅпїЅпїЅ.../dist/server/index.js'`.
+
+**Причина:** сервер искажает не-ASCII символы в пути к ресурсам. Например, профиль Windows с кириллическим именем (`C:\Users\Ярослав\...`) превращается в `пїЅпїЅпїЅ`.
+
+**Решение:** держать сервер в папке, где весь путь латинский, например `K:\fo4-server`. Рабочий стол, «Документы» и Temp из профиля с кириллическим именем не подходят.
+
 ## NPC не синхронизируются
 
 **Симптом:** `No Fallout4.esm in ...\Fallout 4\Data. NPCs are not synced`.
