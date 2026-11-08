@@ -6,6 +6,10 @@
 // While a logged-in player is alive their equipment is sampled every few seconds. After a respawn the
 // last sample is put back on; on login the one stored with the character is. accounts.ts stores the
 // last sample with the character on every save.
+//
+// Power armor is left alone entirely: while a player is in a suit, what getOutfit lists are the suit's
+// pieces, and equipping those as clothes warps the body into a broken suit. So nothing is sampled
+// while they are in one, and nothing is put on them.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.begin = exports.untrack = exports.lastEquipment = exports.restoreAfterRespawn = exports.track = void 0;
 const kSampleMs = 5000;
@@ -49,7 +53,7 @@ const restore = (player, equipment, why) => {
     lastKnown.set(player.id, equipment);
     holdUntil.set(player.id, Date.now() + kRestoreDelayMs + kVerifyDelayMs + kSampleMs);
     setTimeout(() => {
-        if (isGone(player) || player.isDead) {
+        if (isGone(player) || player.isDead || player.isInPowerArmor) {
             return;
         }
         const missing = apply(player, equipment);
@@ -57,7 +61,7 @@ const restore = (player, equipment, why) => {
             console.warn(`${player.nickname}: ${why}: not carried any more, left off: ${missing.join(", ")}`);
         }
         setTimeout(() => {
-            if (isGone(player) || player.isDead) {
+            if (isGone(player) || player.isDead || player.isInPowerArmor) {
                 return;
             }
             const weapon = player.getWeapon()?.form ?? null;
@@ -92,7 +96,7 @@ exports.untrack = untrack;
 const sample = () => {
     const now = Date.now();
     for (const player of Player.all()) {
-        if (!lastKnown.has(player.id) || player.isDead || (holdUntil.get(player.id) ?? 0) > now) {
+        if (!lastKnown.has(player.id) || player.isDead || player.isInPowerArmor || (holdUntil.get(player.id) ?? 0) > now) {
             continue;
         }
         lastKnown.set(player.id, snapshot(player));

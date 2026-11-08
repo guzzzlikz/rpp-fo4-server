@@ -164,7 +164,7 @@ const holdInLobby = (session: Session): void => {
     player.teleport(toVector(kLobby.position), kLobby.heading, { worldSpace: kCommonwealth });
     session.loginTimer = setTimeout((): void => {
         if (sessions.get(player.id) === session && session.identity === null) {
-            player.kick("You took too long to log in");
+            player.kick("Слишком долгий вход: время истекло");
         }
     }, kLoginTimeoutMs);
 };
@@ -291,11 +291,11 @@ const save = (session: Session): void => {
 const register = (session: Session, submitted: AuthSubmit): void => {
     const { username, password, confirm, characterName: name }: AuthSubmit = submitted;
     if (!isUsableUsername(username)) {
-        prompt(session, "Choose your own username, not Player");
+        prompt(session, "Придумайте свой логин, Player занят по умолчанию");
         return;
     }
     if (Database.findAccount(username) !== null) {
-        prompt(session, `The username ${username} is taken. Log in, or choose another one`);
+        prompt(session, `Логин ${username} уже занят. Войдите или выберите другой`);
         return;
     }
     const nameError: string | null = characterNameError(name);
@@ -304,15 +304,15 @@ const register = (session: Session, submitted: AuthSubmit): void => {
         return;
     }
     if (Database.isCharacterNameTaken(name)) {
-        prompt(session, `${name} is already somebody else`);
+        prompt(session, `Персонаж ${name} уже существует`);
         return;
     }
     if (password.length < kPasswordMin || password.length > kPasswordMax) {
-        prompt(session, `Choose a password of ${kPasswordMin} to ${kPasswordMax} characters`);
+        prompt(session, `Пароль: от ${kPasswordMin} до ${kPasswordMax} символов`);
         return;
     }
     if (confirm !== password) {
-        prompt(session, "The passwords do not match");
+        prompt(session, "Пароли не совпадают");
         return;
     }
     const salt: string = randomBytes(kSaltBytes).toString("hex");
@@ -327,16 +327,16 @@ const logIn = (session: Session, submitted: AuthSubmit): void => {
         session.attemptsLeft--;
         console.warn(`${submitted.username}: failed login from ${session.player.nickname} (${session.player.getIP()}), ${session.attemptsLeft} attempts left`);
         if (session.attemptsLeft <= 0) {
-            session.player.kick("Too many failed logins");
+            session.player.kick("Слишком много неудачных попыток входа");
             return;
         }
-        prompt(session, "Wrong username or password");
+        prompt(session, "Неверный логин или пароль");
         return;
     }
     const playing: Session | undefined = sessionOfAccount(account.id);
     if (playing !== undefined) {
         console.warn(`${account.name}: second login from ${session.player.nickname} (${session.player.getIP()}) refused, already played by ${playing.player.nickname}`);
-        prompt(session, `${account.name} is already in the game`);
+        prompt(session, `${account.name} уже в игре`);
         return;
     }
     const level: AdminLevel = isAdminLevel(account.adminLevel) ? account.adminLevel : AdminLevel.player;

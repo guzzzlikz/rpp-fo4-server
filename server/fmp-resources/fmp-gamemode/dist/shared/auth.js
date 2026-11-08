@@ -38,7 +38,7 @@ exports.kUsernameMax = 20;
 const kUsername = new RegExp(`^[A-Za-z0-9_]{${exports.kUsernameMin},${exports.kUsernameMax}}$`);
 // The launcher's default nickname: never offered as a username, since everybody who did not set one has it.
 exports.kDefaultNickname = "Player";
-const usernameError = (username) => kUsername.test(username) ? null : `A username is ${exports.kUsernameMin} to ${exports.kUsernameMax} letters, digits or underscores`;
+const usernameError = (username) => kUsername.test(username) ? null : `Логин: от ${exports.kUsernameMin} до ${exports.kUsernameMax} латинских букв, цифр или _`;
 exports.usernameError = usernameError;
 const isUsableUsername = (name) => (0, exports.usernameError)(name) === null && name.toLowerCase() !== exports.kDefaultNickname.toLowerCase();
 exports.isUsableUsername = isUsableUsername;
@@ -50,7 +50,7 @@ exports.normalizeCharacterName = normalizeCharacterName;
 // Why a character name is refused, or null when it is a valid one. Expects it normalized.
 const characterNameError = (name) => {
     const parts = name.split(" ");
-    return parts.length === 2 && parts.every((part) => kCharacterNamePart.test(part)) ? null : "Name your character with a first and a last name, like John Smith";
+    return parts.length === 2 && parts.every((part) => kCharacterNamePart.test(part)) ? null : "Назовите персонажа именем и фамилией латиницей, например John Smith";
 };
 exports.characterNameError = characterNameError;
 // A submit as it arrives, from the client or from the page: untrusted, so anything but a string is empty.

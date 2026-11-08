@@ -5,6 +5,10 @@
 // While a logged-in player is alive their equipment is sampled every few seconds. After a respawn the
 // last sample is put back on; on login the one stored with the character is. accounts.ts stores the
 // last sample with the character on every save.
+//
+// Power armor is left alone entirely: while a player is in a suit, what getOutfit lists are the suit's
+// pieces, and equipping those as clothes warps the body into a broken suit. So nothing is sampled
+// while they are in one, and nothing is put on them.
 
 import type { Equipment } from "./database";
 
@@ -58,7 +62,7 @@ const restore = (player: Player, equipment: Equipment | null, why: string): void
     lastKnown.set(player.id, equipment);
     holdUntil.set(player.id, Date.now() + kRestoreDelayMs + kVerifyDelayMs + kSampleMs);
     setTimeout((): void => {
-        if (isGone(player) || player.isDead) {
+        if (isGone(player) || player.isDead || player.isInPowerArmor) {
             return;
         }
         const missing: string[] = apply(player, equipment);
@@ -66,7 +70,7 @@ const restore = (player: Player, equipment: Equipment | null, why: string): void
             console.warn(`${player.nickname}: ${why}: not carried any more, left off: ${missing.join(", ")}`);
         }
         setTimeout((): void => {
-            if (isGone(player) || player.isDead) {
+            if (isGone(player) || player.isDead || player.isInPowerArmor) {
                 return;
             }
             const weapon: number | null = player.getWeapon()?.form ?? null;
@@ -102,7 +106,7 @@ export const untrack = (player: Player): void => {
 const sample = (): void => {
     const now: number = Date.now();
     for (const player of Player.all()) {
-        if (!lastKnown.has(player.id) || player.isDead || (holdUntil.get(player.id) ?? 0) > now) {
+        if (!lastKnown.has(player.id) || player.isDead || player.isInPowerArmor || (holdUntil.get(player.id) ?? 0) > now) {
             continue;
         }
         lastKnown.set(player.id, snapshot(player));

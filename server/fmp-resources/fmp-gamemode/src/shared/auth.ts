@@ -95,7 +95,7 @@ const kUsername = new RegExp(`^[A-Za-z0-9_]{${kUsernameMin},${kUsernameMax}}$`);
 export const kDefaultNickname = "Player";
 
 export const usernameError = (username: string): string | null =>
-    kUsername.test(username) ? null : `A username is ${kUsernameMin} to ${kUsernameMax} letters, digits or underscores`;
+    kUsername.test(username) ? null : `Логин: от ${kUsernameMin} до ${kUsernameMax} латинских букв, цифр или _`;
 
 export const isUsableUsername = (name: string): boolean => usernameError(name) === null && name.toLowerCase() !== kDefaultNickname.toLowerCase();
 
@@ -108,7 +108,7 @@ export const normalizeCharacterName = (name: string): string => name.trim().spli
 // Why a character name is refused, or null when it is a valid one. Expects it normalized.
 export const characterNameError = (name: string): string | null => {
     const parts: string[] = name.split(" ");
-    return parts.length === 2 && parts.every((part: string): boolean => kCharacterNamePart.test(part)) ? null : "Name your character with a first and a last name, like John Smith";
+    return parts.length === 2 && parts.every((part: string): boolean => kCharacterNamePart.test(part)) ? null : "Назовите персонажа именем и фамилией латиницей, например John Smith";
 };
 
 // A submit as it arrives, from the client or from the page: untrusted, so anything but a string is empty.
