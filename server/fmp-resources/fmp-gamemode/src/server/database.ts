@@ -1,10 +1,11 @@
-// The gamemode's own SQLite database: accounts and the character each one plays, through
-// better-sqlite3. Its API is synchronous, which suits the server's single script thread: a query
+// The gamemode's own SQLite database: accounts and the character each one plays, through Node's
+// built-in node:sqlite (no native addon: better-sqlite3's prebuilt binaries cannot load inside the
+// Windows FMPServer.exe, whose Node lives in libnode.dll rather than node.exe). Its API is synchronous, which suits the server's single script thread: a query
 // finishes before the handler that asked returns, so two events can never interleave a read and a
 // write.
 
-import BetterSqlite3 from "better-sqlite3";
 import { mkdirSync } from "node:fs";
+import { DatabaseSync, type SQLInputValue, type StatementSync } from "node:sqlite";
 
 import type { Point } from "../shared/auth";
 
@@ -93,37 +94,69 @@ interface CharacterRow {
     play_seconds: number;
 }
 
-const open = (): BetterSqlite3.Database => {
-    mkdirSync(kFolder, { recursive: true });
-    const db: BetterSqlite3.Database = new BetterSqlite3(kPath);
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
+// Runs `work` inside one transaction: all of it lands, or none of it does.
+const inTransaction = <T>(db: DatabaseSync, work: () => T): T => {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+        const result: T = work();
+        db.exec("COMMIT");
+        return result;
+    } catch (error) {
+        if (db.isTransaction) {
+            db.exec("ROLLBACK");
+        }
+        throw error;
+    }
+};
 
-    const version = Number(db.pragma("user_version", { simple: true }));
-    const migrate: BetterSqlite3.Transaction<() => void> = db.transaction((): void => {
+const open = (): DatabaseSync => {
+    mkdirSync(kFolder, { recursive: true });
+    const db: DatabaseSync = new DatabaseSync(kPath);
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec("PRAGMA foreign_keys = ON");
+
+    const version = Number((db.prepare("PRAGMA user_version").get() as { user_version: number } | undefined)?.user_version ?? 0);
+    inTransaction(db, (): void => {
         kMigrations.slice(version).forEach((migration: string, index: number): void => {
             db.exec(migration);
-            db.pragma(`user_version = ${version + index + 1}`);
+            db.exec(`PRAGMA user_version = ${version + index + 1}`);
         });
     });
-    migrate();
     console.log(`database ${kPath} at schema ${kMigrations.length}`);
     return db;
 };
 
-const db: BetterSqlite3.Database = open();
+const db: DatabaseSync = open();
+
+// A prepared statement typed by its parameters and the row it reads, as better-sqlite3's generics
+// were: node:sqlite itself hands back untyped records.
+interface Statement<Params extends SQLInputValue[], Row = never> {
+    get(...params: Params): Row | undefined;
+    run(...params: Params): { changes: number; lastInsertRowid: number };
+}
+
+const prepare = <Params extends SQLInputValue[], Row = never>(sql: string): Statement<Params, Row> => {
+    const statement: StatementSync = db.prepare(sql);
+    return {
+        get: (...params: Params): Row | undefined => statement.get(...params) as Row | undefined,
+        run: (...params: Params): { changes: number; lastInsertRowid: number } => {
+            const result = statement.run(...params);
+            return { changes: Number(result.changes), lastInsertRowid: Number(result.lastInsertRowid) };
+        },
+    };
+};
 
 const statements = {
-    findAccount: db.prepare<[string], AccountRow>("SELECT a.id, a.name, a.password_hash, a.password_salt, a.admin_level, c.name AS character_name FROM accounts a LEFT JOIN characters c ON c.account_id = a.id WHERE a.name = ?"),
-    createAccount: db.prepare<[string, string, string, string, number]>("INSERT INTO accounts (name, password_hash, password_salt, steam_id, created_at) VALUES (?, ?, ?, ?, ?)"),
-    createCharacter: db.prepare<[number, string, number]>("INSERT INTO characters (account_id, name, updated_at) VALUES (?, ?, ?)"),
-    characterNameTaken: db.prepare<[string], { taken: number }>("SELECT 1 AS taken FROM characters WHERE name = ? COLLATE NOCASE"),
-    setAdminLevel: db.prepare<[number, string]>("UPDATE accounts SET admin_level = ? WHERE name = ?"),
-    saveAppearance: db.prepare<[string, number, number]>("UPDATE characters SET appearance = ?, updated_at = ? WHERE account_id = ?"),
-    markCreated: db.prepare<[number, number]>("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
-    touchAccount: db.prepare<[number, string, number]>("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
-    findCharacter: db.prepare<[number], CharacterRow>("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
-    saveCharacter: db.prepare<[number, string | null, number, number, number | null, number | null, number | null, number, number, number]>(
+    findAccount: prepare<[string], AccountRow>("SELECT a.id, a.name, a.password_hash, a.password_salt, a.admin_level, c.name AS character_name FROM accounts a LEFT JOIN characters c ON c.account_id = a.id WHERE a.name = ?"),
+    createAccount: prepare<[string, string, string, string, number]>("INSERT INTO accounts (name, password_hash, password_salt, steam_id, created_at) VALUES (?, ?, ?, ?, ?)"),
+    createCharacter: prepare<[number, string, number]>("INSERT INTO characters (account_id, name, updated_at) VALUES (?, ?, ?)"),
+    characterNameTaken: prepare<[string], { taken: number }>("SELECT 1 AS taken FROM characters WHERE name = ? COLLATE NOCASE"),
+    setAdminLevel: prepare<[number, string]>("UPDATE accounts SET admin_level = ? WHERE name = ?"),
+    saveAppearance: prepare<[string, number, number]>("UPDATE characters SET appearance = ?, updated_at = ? WHERE account_id = ?"),
+    markCreated: prepare<[number, number]>("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
+    touchAccount: prepare<[number, string, number]>("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
+    findCharacter: prepare<[number], CharacterRow>("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
+    saveCharacter: prepare<[number, string | null, number, number, number | null, number | null, number | null, number, number, number]>(
         `INSERT INTO characters (account_id, document, world_space, interior_cell, x, y, z, heading, play_seconds, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(account_id) DO UPDATE SET
@@ -142,13 +175,12 @@ export const findAccount = (name: string): Account | null => {
 export const isCharacterNameTaken = (characterName: string): boolean => statements.characterNameTaken.get(characterName) !== undefined;
 
 // The account and its named character, together or not at all.
-const createAccountWithCharacter = db.transaction((name: string, passwordHash: string, passwordSalt: string, steamId: string, characterName: string): number => {
-    const id = Number(statements.createAccount.run(name, passwordHash, passwordSalt, steamId, now()).lastInsertRowid);
-    statements.createCharacter.run(id, characterName, now());
-    return id;
-});
-
-export const createAccount = (name: string, passwordHash: string, passwordSalt: string, steamId: string, characterName: string): number => createAccountWithCharacter(name, passwordHash, passwordSalt, steamId, characterName);
+export const createAccount = (name: string, passwordHash: string, passwordSalt: string, steamId: string, characterName: string): number =>
+    inTransaction(db, (): number => {
+        const id: number = statements.createAccount.run(name, passwordHash, passwordSalt, steamId, now()).lastInsertRowid;
+        statements.createCharacter.run(id, characterName, now());
+        return id;
+    });
 
 // False when no account has that name.
 export const setAdminLevel = (name: string, level: number): boolean => statements.setAdminLevel.run(level, name).changes > 0;

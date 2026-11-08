@@ -1,6 +1,9 @@
 # Известные проблемы
 
-## fmp-gamemode не стартует на Windows: better-sqlite3
+## ✅ Исправлено: fmp-gamemode не стартовал на Windows из-за better-sqlite3
+
+**Статус:** исправлено 2026-11-08. `fmp-gamemode/src/server/database.ts` переведён на встроенный `node:sqlite`, зависимость `better-sqlite3` удалена. Подробности в [resources/fmp-gamemode.md](resources/fmp-gamemode.md).
+Если ошибка снова появится после обновления релиза FMP (новый gamemode из архива перезапишет наш), повтори перевод или возьми `database.ts` из git.
 
 **Симптом** в `server/logs/framework.log`:
 ```
@@ -14,10 +17,7 @@ Failed to start resource fmp-gamemode: Error: A dynamic link library (DLL) initi
 - У `better-sqlite3` 13.x нет готовых бинарников под Node 25: сервер встраивает Node 25.6.1, ABI 141.
 - Готовый бинарник 12.11.1 под ABI 141 скачивается, но внутри `FMPServer.exe` не загружается. Нативные модули Windows ищут функции Node в `node.exe`, а у FMP они лежат в `libnode.dll`.
 
-**Обход.** Пока нет. Варианты:
-1. Перевести `fmp-gamemode/src/server/database.ts` на встроенный `node:sqlite` (`DatabaseSync`), без нативных модулей. Это примерно 190 строк, API похож на текущий.
-2. Запускать сервер на Linux (`server-linux/`) или в Docker-образе `ghcr.io/fallout-mp/fmp-server`, где нативные модули загружаются нормально (не проверено).
-3. Спросить в Discord FMP, как это задумано на Windows.
+**Решение.** Не использовать нативные модули Node в ресурсах на Windows-сервере. Для SQLite есть встроенный `node:sqlite` (`DatabaseSync`).
 
 **Как проверить, что исправлено:** в логе есть `Started JS resource: fmp-gamemode` и нет `Failed to start resource fmp-gamemode`.
 

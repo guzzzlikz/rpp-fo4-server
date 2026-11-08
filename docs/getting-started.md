@@ -22,6 +22,7 @@ fo4-server/
 │   ├── server.json              конфиг, создаётся при первом запуске (не в git)
 │   ├── server.example.json      шаблон конфига (в git)
 │   ├── logs/framework.log       лог сервера
+│   ├── fmp-data/gamemode.sqlite база аккаунтов и персонажей (не в git, делай бэкапы)
 │   └── fmp-resources/           ресурсы, которые загружает сервер
 │       ├── fmp-gamemode/        стандартный gamemode из релиза
 │       └── fmp-healthcheck/     наш ресурс самопроверки
@@ -44,7 +45,7 @@ npm ci
 npm run build
 
 cd ..\fmp-gamemode
-npm ci --ignore-scripts      # см. known-issues.md про better-sqlite3
+npm ci
 npm run build
 
 # 3. Запуск
@@ -107,6 +108,7 @@ npm run watch:client     # пересборка клиентской части 
 2. Версию `@falloutmp/types` держи равной версии релиза сервера; сейчас это `0.2.5`. Если версии расходятся, типы описывают несуществующие или пропускают существующие функции.
 3. В tsconfig нужен `"module": "CommonJS"`, потому что ресурсы загружаются через `require()`.
 4. Клиентские данные считай недоверенными и проверяй их на сервере.
-5. Напиши `docs/resources/<имя>.md` по [шаблону](resources/_template.md).
+5. **Не подключай нативные npm-модули** (`*.node`, например `better-sqlite3`, `bcrypt`): внутри Windows `FMPServer.exe` они не загружаются. Для SQLite используй `node:sqlite`, для хэшей `node:crypto`. Подробности в [known-issues.md](known-issues.md).
+6. Напиши `docs/resources/<имя>.md` по [шаблону](resources/_template.md).
 
 Документация API: https://docs.fallout.mp/reference/server/ и https://docs.fallout.mp/reference/client/
