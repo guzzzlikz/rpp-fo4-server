@@ -3,6 +3,7 @@
 // them read it, under their character's name. The commands add actions (/me, /do), shouting,
 // out-of-character talk, local (/b) and global (/ooc), private messages and handing over caps.
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.speak = void 0;
 const accounts_1 = require("./accounts");
 const chat_1 = require("./chat");
 const players_1 = require("./players");
@@ -28,15 +29,20 @@ const around = (player, range) => {
 };
 const sayAround = (player, range, text, color) => {
     for (const listener of around(player, range)) {
-        Chat.sendToPlayer(listener, text, { color });
+        (0, chat_1.chatTo)(listener, text, { color });
     }
 };
 const joined = (args) => args.join(" ").trim();
 // Plain chat is speech: local, under the character's name, and never seen by anyone not logged in.
-Events.on("playerChat", (player, text) => {
+// A line said aloud, from FMP's native chat or the gamemode's own (index.ts).
+const speak = (player, text) => {
     if ((0, accounts_1.isLoggedIn)(player)) {
         sayAround(player, kSayRange, `${(0, accounts_1.characterName)(player)} says: ${text}`, kSayColor);
     }
+};
+exports.speak = speak;
+Events.on("playerChat", (player, text) => {
+    (0, exports.speak)(player, text);
     return false;
 });
 (0, chat_1.registerCommands)(chat_1.AdminLevel.player, {
@@ -84,7 +90,7 @@ Events.on("playerChat", (player, text) => {
             return;
         }
         for (const listener of (0, accounts_1.loggedInPlayers)()) {
-            Chat.sendToPlayer(listener, `(( [OOC] ${(0, accounts_1.accountName)(player)}: ${text} ))`, { color: kOocColor });
+            (0, chat_1.chatTo)(listener, `(( [OOC] ${(0, accounts_1.accountName)(player)}: ${text} ))`, { color: kOocColor });
         }
     },
     // "/pm <player> <text>": a private, out-of-character message.
@@ -99,8 +105,8 @@ Events.on("playerChat", (player, text) => {
         if (target === null) {
             return;
         }
-        Chat.sendToPlayer(target, `(( PM from ${(0, accounts_1.characterName)(player)} [${player.id}]: ${text} ))`, { color: kPrivateColor });
-        Chat.sendToPlayer(player, `(( PM to ${(0, accounts_1.characterName)(target)} [${target.id}]: ${text} ))`, { color: kPrivateColor });
+        (0, chat_1.chatTo)(target, `(( PM from ${(0, accounts_1.characterName)(player)} [${player.id}]: ${text} ))`, { color: kPrivateColor });
+        (0, chat_1.chatTo)(player, `(( PM to ${(0, accounts_1.characterName)(target)} [${target.id}]: ${text} ))`, { color: kPrivateColor });
     },
     // "/pay <player> <caps>": hands caps to someone standing next to the sender.
     pay: (player, args) => {
@@ -129,8 +135,8 @@ Events.on("playerChat", (player, text) => {
         }
         player.setCaps(caps - amount);
         target.setCaps(target.getCaps() + amount);
-        Chat.sendToPlayer(player, `You gave ${amount} caps to ${(0, accounts_1.characterName)(target)}.`, { color: kMoneyColor });
-        Chat.sendToPlayer(target, `${(0, accounts_1.characterName)(player)} gave you ${amount} caps.`, { color: kMoneyColor });
+        (0, chat_1.chatTo)(player, `You gave ${amount} caps to ${(0, accounts_1.characterName)(target)}.`, { color: kMoneyColor });
+        (0, chat_1.chatTo)(target, `${(0, accounts_1.characterName)(player)} gave you ${amount} caps.`, { color: kMoneyColor });
         sayAround(player, kSayRange, `* ${(0, accounts_1.characterName)(player)} hands some caps to ${(0, accounts_1.characterName)(target)}.`, kActionColor);
         console.log(`${(0, accounts_1.accountName)(player)} paid ${amount} caps to ${(0, accounts_1.accountName)(target)}`);
     },

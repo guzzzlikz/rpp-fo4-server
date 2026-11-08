@@ -97,7 +97,7 @@ Events.on("consoleCommand", (command, args) => {
             return;
         }
         for (const staff of (0, accounts_1.loggedInPlayers)().filter((other) => (0, accounts_1.adminLevel)(other) >= chat_1.AdminLevel.moderator)) {
-            Chat.sendToPlayer(staff, `[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${(0, accounts_1.accountName)(player)}: ${text}`, { color: kStaffChatColor });
+            (0, chat_1.chatTo)(staff, `[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${(0, accounts_1.accountName)(player)}: ${text}`, { color: kStaffChatColor });
         }
     },
     // "/kick <player> [reason]".
