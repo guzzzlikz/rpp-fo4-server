@@ -5,15 +5,13 @@
 import { adminLevel, isLoggedIn } from "./accounts";
 import "./admin";
 import "./character";
-import "./chatmode";
 import { AdminLevel, type Command, commandsFor, findCommand, kAdminLevelNames, registerCommands, reply } from "./chat";
 import "./commands";
 import "./emotes";
 import "./explosives";
 import "./powerarmor";
 import "./respawn";
-import { speak } from "./roleplay";
-import { ChatEvents, readChatSend } from "../shared/chat";
+import "./roleplay";
 
 // What the server answers itself, after the gamemode has seen the line (core/server.cpp,
 // OnChatCommand): not the gamemode's to call unknown.
@@ -41,7 +39,7 @@ registerCommands(AdminLevel.player, {
 
 // Nobody runs a command before they are somebody, and none above their rank. A command they may not
 // run reads as one that does not exist.
-const dispatch = (player: Player, name: string, args: string[]): void => {
+Events.on("playerCommand", (player: Player, name: string, args: string[]): void => {
     if (!isLoggedIn(player)) {
         return;
     }
@@ -54,24 +52,4 @@ const dispatch = (player: Player, name: string, args: string[]): void => {
         return;
     }
     command.run(player, args);
-};
-
-Events.on("playerCommand", dispatch);
-
-// The gamemode's own chat box (ui/chat): a line typed there arrives here, not as playerChat or
-// playerCommand, and is handled exactly as they would be.
-Events.onClient(ChatEvents.send, (sender: unknown, payload: unknown): void => {
-    const player = sender as Player;
-    const { text } = readChatSend(payload);
-    if (text === "") {
-        return;
-    }
-    if (!text.startsWith("/")) {
-        speak(player, text);
-        return;
-    }
-    const [name = "", ...args]: string[] = text.slice(1).split(/\s+/).filter((part: string): boolean => part !== "");
-    if (name !== "") {
-        dispatch(player, name.toLowerCase(), args);
-    }
 });

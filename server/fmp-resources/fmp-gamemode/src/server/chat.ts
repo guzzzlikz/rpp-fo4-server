@@ -1,7 +1,7 @@
 // What the gamemode's chat commands share: answering the sender, and reading what they typed.
 
 import type { Point } from "../shared/auth";
-import { ChatEvents, type ChatLine } from "../shared/chat";
+import { forChat } from "./cyrillic";
 
 export type CommandHandler = (player: Player, args: string[]) => void;
 
@@ -40,14 +40,8 @@ export const findCommand = (name: string): Command | undefined => commands.get(n
 // The commands a rank may run, by name.
 export const commandsFor = (level: AdminLevel): Command[] => [...commands.values()].filter((command: Command): boolean => command.level <= level).sort((a: Command, b: Command): number => a.name.localeCompare(b.name));
 
-// A chat line to one player, through the gamemode's own chat (ui/chat): FMP's native chat box does
-// not take Cyrillic. Every line the gamemode sends goes through here.
-export const chatTo = (player: Player, text: string, options: { color?: number; author?: string } = {}): void => {
-    player.emit(ChatEvents.line, JSON.stringify({ text, ...options } satisfies ChatLine));
-};
-
 export const reply = (player: Player, text: string): void => {
-    chatTo(player, text, { author: "Server" });
+    Chat.sendToPlayer(player, forChat(text), { author: "Server" });
 };
 
 export const parseNumber = (text: string | undefined): number | undefined => {

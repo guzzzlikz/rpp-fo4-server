@@ -6,15 +6,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const accounts_1 = require("./accounts");
 require("./admin");
 require("./character");
-require("./chatmode");
 const chat_1 = require("./chat");
 require("./commands");
 require("./emotes");
 require("./explosives");
 require("./powerarmor");
 require("./respawn");
-const roleplay_1 = require("./roleplay");
-const chat_2 = require("../shared/chat");
+require("./roleplay");
 // What the server answers itself, after the gamemode has seen the line (core/server.cpp,
 // OnChatCommand): not the gamemode's to call unknown.
 const kServerCommands = new Set(["invset", "npc"]);
@@ -36,7 +34,7 @@ Events.on("playerDisconnect", (player) => {
 });
 // Nobody runs a command before they are somebody, and none above their rank. A command they may not
 // run reads as one that does not exist.
-const dispatch = (player, name, args) => {
+Events.on("playerCommand", (player, name, args) => {
     if (!(0, accounts_1.isLoggedIn)(player)) {
         return;
     }
@@ -49,22 +47,4 @@ const dispatch = (player, name, args) => {
         return;
     }
     command.run(player, args);
-};
-Events.on("playerCommand", dispatch);
-// The gamemode's own chat box (ui/chat): a line typed there arrives here, not as playerChat or
-// playerCommand, and is handled exactly as they would be.
-Events.onClient(chat_2.ChatEvents.send, (sender, payload) => {
-    const player = sender;
-    const { text } = (0, chat_2.readChatSend)(payload);
-    if (text === "") {
-        return;
-    }
-    if (!text.startsWith("/")) {
-        (0, roleplay_1.speak)(player, text);
-        return;
-    }
-    const [name = "", ...args] = text.slice(1).split(/\s+/).filter((part) => part !== "");
-    if (name !== "") {
-        dispatch(player, name.toLowerCase(), args);
-    }
 });

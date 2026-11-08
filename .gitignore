@@ -25,4 +25,4 @@ node_modules/
 *.7z
 
 # per-server switches written by the gamemode at runtime
-/server/fmp-resources/fmp-gamemode/chat-settings.json
+/server/fmp-resources/fmp-gamemode/cyrillic-settings.json

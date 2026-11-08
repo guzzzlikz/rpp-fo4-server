@@ -37,6 +37,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const accounts_1 = require("./accounts");
 const chat_1 = require("./chat");
+const cyrillic_1 = require("./cyrillic");
 const Database = __importStar(require("./database"));
 const places_1 = require("./places");
 const players_1 = require("./players");
@@ -97,7 +98,7 @@ Events.on("consoleCommand", (command, args) => {
             return;
         }
         for (const staff of (0, accounts_1.loggedInPlayers)().filter((other) => (0, accounts_1.adminLevel)(other) >= chat_1.AdminLevel.moderator)) {
-            (0, chat_1.chatTo)(staff, `[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${(0, accounts_1.accountName)(player)}: ${text}`, { color: kStaffChatColor });
+            Chat.sendToPlayer(staff, (0, cyrillic_1.forChat)(`[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${(0, accounts_1.accountName)(player)}: ${text}`), { color: kStaffChatColor });
         }
     },
     // "/kick <player> [reason]".

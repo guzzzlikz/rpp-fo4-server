@@ -1,8 +1,8 @@
 "use strict";
 // What the gamemode's chat commands share: answering the sender, and reading what they typed.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.formatPoint = exports.formatForm = exports.parseForm = exports.parseNumber = exports.reply = exports.chatTo = exports.commandsFor = exports.findCommand = exports.registerCommands = exports.isAdminLevel = exports.kAdminLevelNames = exports.AdminLevel = void 0;
-const chat_1 = require("../shared/chat");
+exports.formatPoint = exports.formatForm = exports.parseForm = exports.parseNumber = exports.reply = exports.commandsFor = exports.findCommand = exports.registerCommands = exports.isAdminLevel = exports.kAdminLevelNames = exports.AdminLevel = void 0;
+const cyrillic_1 = require("./cyrillic");
 // Staff ranks, lowest first. A command asks for one; a player whose account holds it or a higher one
 // may run it.
 exports.AdminLevel = {
@@ -27,14 +27,8 @@ exports.findCommand = findCommand;
 // The commands a rank may run, by name.
 const commandsFor = (level) => [...commands.values()].filter((command) => command.level <= level).sort((a, b) => a.name.localeCompare(b.name));
 exports.commandsFor = commandsFor;
-// A chat line to one player, through the gamemode's own chat (ui/chat): FMP's native chat box does
-// not take Cyrillic. Every line the gamemode sends goes through here.
-const chatTo = (player, text, options = {}) => {
-    player.emit(chat_1.ChatEvents.line, JSON.stringify({ text, ...options }));
-};
-exports.chatTo = chatTo;
 const reply = (player, text) => {
-    (0, exports.chatTo)(player, text, { author: "Server" });
+    Chat.sendToPlayer(player, (0, cyrillic_1.forChat)(text), { author: "Server" });
 };
 exports.reply = reply;
 const parseNumber = (text) => {

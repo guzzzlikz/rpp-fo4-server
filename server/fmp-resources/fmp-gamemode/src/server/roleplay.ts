@@ -3,7 +3,8 @@
 // out-of-character talk, local (/b) and global (/ooc), private messages and handing over caps.
 
 import { accountName, characterName, isLoggedIn, loggedInPlayers } from "./accounts";
-import { AdminLevel, chatTo, parseNumber, registerCommands, reply } from "./chat";
+import { AdminLevel, parseNumber, registerCommands, reply } from "./chat";
+import { forChat } from "./cyrillic";
 import { findPlayer } from "./players";
 
 // Game units; 1 unit is about 1.43 cm, so 70 make a metre.
@@ -33,22 +34,17 @@ const around = (player: Player, range: number): Player[] => {
 
 const sayAround = (player: Player, range: number, text: string, color: number): void => {
     for (const listener of around(player, range)) {
-        chatTo(listener, text, { color });
+        Chat.sendToPlayer(listener, forChat(text), { color });
     }
 };
 
 const joined = (args: string[]): string => args.join(" ").trim();
 
 // Plain chat is speech: local, under the character's name, and never seen by anyone not logged in.
-// A line said aloud, from FMP's native chat or the gamemode's own (index.ts).
-export const speak = (player: Player, text: string): void => {
+Events.on("playerChat", (player: Player, text: string): false => {
     if (isLoggedIn(player)) {
         sayAround(player, kSayRange, `${characterName(player)} says: ${text}`, kSayColor);
     }
-};
-
-Events.on("playerChat", (player: Player, text: string): false => {
-    speak(player, text);
     return false;
 });
 
@@ -101,7 +97,7 @@ registerCommands(AdminLevel.player, {
             return;
         }
         for (const listener of loggedInPlayers()) {
-            chatTo(listener, `(( [OOC] ${accountName(player)}: ${text} ))`, { color: kOocColor });
+            Chat.sendToPlayer(listener, forChat(`(( [OOC] ${accountName(player)}: ${text} ))`), { color: kOocColor });
         }
     },
 
@@ -117,8 +113,8 @@ registerCommands(AdminLevel.player, {
         if (target === null) {
             return;
         }
-        chatTo(target, `(( PM from ${characterName(player)} [${player.id}]: ${text} ))`, { color: kPrivateColor });
-        chatTo(player, `(( PM to ${characterName(target)} [${target.id}]: ${text} ))`, { color: kPrivateColor });
+        Chat.sendToPlayer(target, forChat(`(( PM from ${characterName(player)} [${player.id}]: ${text} ))`), { color: kPrivateColor });
+        Chat.sendToPlayer(player, forChat(`(( PM to ${characterName(target)} [${target.id}]: ${text} ))`), { color: kPrivateColor });
     },
 
     // "/pay <player> <caps>": hands caps to someone standing next to the sender.
@@ -148,8 +144,8 @@ registerCommands(AdminLevel.player, {
         }
         player.setCaps(caps - amount);
         target.setCaps(target.getCaps() + amount);
-        chatTo(player, `You gave ${amount} caps to ${characterName(target)}.`, { color: kMoneyColor });
-        chatTo(target, `${characterName(player)} gave you ${amount} caps.`, { color: kMoneyColor });
+        Chat.sendToPlayer(player, forChat(`You gave ${amount} caps to ${characterName(target)}.`), { color: kMoneyColor });
+        Chat.sendToPlayer(target, forChat(`${characterName(player)} gave you ${amount} caps.`), { color: kMoneyColor });
         sayAround(player, kSayRange, `* ${characterName(player)} hands some caps to ${characterName(target)}.`, kActionColor);
         console.log(`${accountName(player)} paid ${amount} caps to ${accountName(target)}`);
     },

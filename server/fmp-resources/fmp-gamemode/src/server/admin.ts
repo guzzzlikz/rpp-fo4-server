@@ -2,7 +2,8 @@
 // first owner ("setadmin <account> owner"); from then on owners rank others from the game.
 
 import { accountName, adminLevel, characterName, forgetAccount, loggedInPlayers, refreshAdminLevel } from "./accounts";
-import { AdminLevel, chatTo, isAdminLevel, kAdminLevelNames, registerCommands, reply } from "./chat";
+import { AdminLevel, isAdminLevel, kAdminLevelNames, registerCommands, reply } from "./chat";
+import { forChat } from "./cyrillic";
 import * as Database from "./database";
 import { teleportSpace } from "./places";
 import { findPlayer } from "./players";
@@ -68,7 +69,7 @@ registerCommands(AdminLevel.moderator, {
             return;
         }
         for (const staff of loggedInPlayers().filter((other: Player): boolean => adminLevel(other) >= AdminLevel.moderator)) {
-            chatTo(staff, `[Staff] ${kAdminLevelNames[adminLevel(player)]} ${accountName(player)}: ${text}`, { color: kStaffChatColor });
+            Chat.sendToPlayer(staff, forChat(`[Staff] ${kAdminLevelNames[adminLevel(player)]} ${accountName(player)}: ${text}`), { color: kStaffChatColor });
         }
     },
 

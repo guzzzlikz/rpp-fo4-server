@@ -8,7 +8,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const auth_1 = require("../shared/auth");
 const Cinematic = require("./cinematic");
-require("./chat");
 require("./emotes");
 require("./life");
 const Login = require("./login");
