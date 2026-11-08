@@ -84,7 +84,7 @@ Events.on("playerChat", (player, text) => {
             return;
         }
         for (const listener of (0, accounts_1.loggedInPlayers)()) {
-            Chat.sendToPlayer(listener, `(( [OOC] ${player.nickname}: ${text} ))`, { color: kOocColor });
+            Chat.sendToPlayer(listener, `(( [OOC] ${(0, accounts_1.accountName)(player)}: ${text} ))`, { color: kOocColor });
         }
     },
     // "/pm <player> <text>": a private, out-of-character message.
@@ -132,6 +132,6 @@ Events.on("playerChat", (player, text) => {
         Chat.sendToPlayer(player, `You gave ${amount} caps to ${(0, accounts_1.characterName)(target)}.`, { color: kMoneyColor });
         Chat.sendToPlayer(target, `${(0, accounts_1.characterName)(player)} gave you ${amount} caps.`, { color: kMoneyColor });
         sayAround(player, kSayRange, `* ${(0, accounts_1.characterName)(player)} hands some caps to ${(0, accounts_1.characterName)(target)}.`, kActionColor);
-        console.log(`${player.nickname} paid ${amount} caps to ${target.nickname}`);
+        console.log(`${(0, accounts_1.accountName)(player)} paid ${amount} caps to ${(0, accounts_1.accountName)(target)}`);
     },
 });

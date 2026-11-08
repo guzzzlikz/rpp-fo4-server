@@ -5,8 +5,9 @@
 <title>Login</title>
 <!--
   The login page over the cinematic camera. Driven by src/client/login.ts:
-    page -> script   callEvent("login:ready", null), callEvent("login:submit", "{password, confirm, characterName}")
-    script -> page   "login:state" { name, registered, attemptsLeft, error, busy, done }
+    page -> script   callEvent("login:ready", null), callEvent("login:submit", "{mode, username, password, confirm, characterName}")
+    script -> page   "login:state" { username, mode, attemptsLeft, error, busy, done }
+  The account is the username typed here, not the launcher's nickname (everyone without one is "Player").
   The background stays transparent: the game is the picture, the page only darkens one side of it.
 -->
 <style>
@@ -45,12 +46,16 @@
   .lead { margin-top: 10px; color: var(--dim); max-width: 34ch; }
 
   form { margin-top: 30px; padding: 22px; border: 1px solid var(--faint); border-radius: 6px; background: var(--panel); backdrop-filter: blur(6px); }
-  .who { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--faint); }
-  .who span { font-size: 13px; color: var(--dim); }
-  .who strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 18px; border: 1px solid var(--faint); border-radius: 5px; }
+  .tabs button { height: 34px; margin: 0; font-size: 12px; color: var(--dim); background: transparent; }
+  .tabs button.active { color: var(--accent-ink); background: var(--accent); }
+  .tabs button:disabled { opacity: 1; }
 
   label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 6px; }
-  .field + .field { margin-top: 14px; }
+  .hint { margin-top: 5px; font-size: 12px; color: var(--dim); }
+  .field + .field, .row + .field, .field + .row { margin-top: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--faint); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
   input {
     width: 100%; height: 44px; padding: 0 14px;
     font: inherit; color: var(--ink);
@@ -91,10 +96,14 @@
   <p class="lead" id="lead">Connecting to the server&hellip;</p>
 
   <form id="form" autocomplete="off" novalidate>
-    <div class="who"><span>Signing in as</span><strong id="name">&hellip;</strong></div>
-    <div class="field hidden" id="character-field">
-      <label for="character">Character name</label>
-      <input id="character" type="text" maxlength="33" placeholder="John Smith" spellcheck="false" disabled>
+    <div class="tabs" role="tablist">
+      <button type="button" id="tab-login" role="tab" disabled>Log in</button>
+      <button type="button" id="tab-register" role="tab" disabled>Create account</button>
+    </div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" type="text" maxlength="20" placeholder="yaroslav_99" spellcheck="false" disabled>
+      <p class="hint hidden" id="username-hint">3&ndash;20 Latin letters, digits or _. Your login and how staff find you.</p>
     </div>
     <div class="field">
       <label for="password">Password</label>
@@ -104,6 +113,20 @@
       <label for="confirm">Confirm password</label>
       <input id="confirm" type="password" maxlength="128" disabled>
     </div>
+    <div class="hidden" id="character-fields">
+      <div class="section">Your character</div>
+      <div class="row" style="margin-top: 12px">
+        <div>
+          <label for="first">First name</label>
+          <input id="first" type="text" maxlength="16" placeholder="John" spellcheck="false" disabled>
+        </div>
+        <div>
+          <label for="last">Last name</label>
+          <input id="last" type="text" maxlength="16" placeholder="Smith" spellcheck="false" disabled>
+        </div>
+      </div>
+      <p class="hint">Latin letters only, 2&ndash;16 each. Shown above your head and in chat.</p>
+    </div>
     <div class="error" id="error" role="alert"></div>
     <button id="submit" type="submit" disabled>Log in</button>
     <p class="foot" id="foot"></p>
@@ -111,56 +134,110 @@
 </main>
 <script>
   const $ = (id) => document.getElementById(id);
-  const form = $("form"), character = $("character"), password = $("password"), confirm = $("confirm"), button = $("submit");
+  const form = $("form"), username = $("username"), password = $("password"), confirm = $("confirm"), first = $("first"), last = $("last"), button = $("submit");
+  const inputs = [username, password, confirm, first, last];
   let state = null;
+  // The tab shown: the server's on every state it sends, the player's own between them.
+  let mode = "login";
+
+  const kUsername = /^[A-Za-z0-9_]{3,20}$/;
+  const kNamePart = /^[A-Za-z]{2,16}$/;
 
   function render() {
-    const registered = state.registered;
-    $("title").textContent = registered ? "Welcome back" : "Welcome to the Commonwealth";
-    $("lead").textContent = registered ? "Log in to pick up where you left off." : "This name is new here. Name your character and choose a password.";
-    $("name").textContent = state.name;
-    $("character-field").classList.toggle("hidden", registered);
-    $("confirm-field").classList.toggle("hidden", registered);
-    button.textContent = registered ? "Log in" : "Create account";
+    const registering = mode === "register";
+    $("title").textContent = registering ? "Welcome to the Commonwealth" : "Welcome back";
+    $("lead").textContent = registering ? "Choose a username and a password, and name your character." : "Log in with your username to pick up where you left off.";
+    $("tab-login").classList.toggle("active", !registering);
+    $("tab-register").classList.toggle("active", registering);
+    $("username-hint").classList.toggle("hidden", !registering);
+    $("confirm-field").classList.toggle("hidden", !registering);
+    $("character-fields").classList.toggle("hidden", !registering);
+    button.textContent = registering ? "Create account" : "Log in";
     button.classList.toggle("busy", state.busy);
-    $("error").textContent = state.error || "";
-    $("foot").textContent = registered && state.attemptsLeft < 5 ? `${state.attemptsLeft} attempts left` : "";
+    $("foot").textContent = !registering && state.attemptsLeft < 5 ? `${state.attemptsLeft} attempts left` : "";
 
     const locked = state.busy || state.done;
-    character.disabled = password.disabled = confirm.disabled = button.disabled = locked;
+    for (const input of inputs) input.disabled = locked;
+    button.disabled = $("tab-login").disabled = $("tab-register").disabled = locked;
     document.body.classList.toggle("done", state.done);
-    if (!locked) {
-      if (state.error) {
-        password.value = "";
-        confirm.value = "";
-      }
-      (!registered && !character.value.trim() ? character : password).focus();
-    }
+  }
+
+  function focusFirstEmpty() {
+    const order = mode === "register" ? [username, password, confirm, first, last] : [username, password];
+    (order.find((input) => !input.value.trim()) || order[order.length - 1]).focus();
   }
 
   window.addEventListener("login:state", (event) => {
     state = event.detail;
+    mode = state.mode;
+    if (!username.value && state.username) {
+      username.value = state.username;
+    }
+    $("error").textContent = state.error || "";
+    if (state.error) {
+      password.value = "";
+      confirm.value = "";
+    }
     render();
+    if (!state.busy && !state.done) {
+      focusFirstEmpty();
+    }
   });
+
+  const switchTo = (next) => {
+    if (state === null || state.busy || state.done || mode === next) {
+      return;
+    }
+    mode = next;
+    $("error").textContent = "";
+    render();
+    focusFirstEmpty();
+  };
+  $("tab-login").addEventListener("click", () => switchTo("login"));
+  $("tab-register").addEventListener("click", () => switchTo("register"));
+
+  const fail = (message, input) => {
+    $("error").textContent = message;
+    input.focus();
+  };
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (state === null || state.busy || state.done) {
       return;
     }
-    if (!state.registered && !character.value.trim()) {
-      $("error").textContent = "Name your character";
-      return;
+    const name = username.value.trim();
+    const registering = mode === "register";
+    if (!kUsername.test(name)) {
+      return fail("A username is 3 to 20 Latin letters, digits or _", username);
+    }
+    if (registering && name.toLowerCase() === "player") {
+      return fail("Choose your own username, not Player", username);
     }
     if (!password.value) {
-      $("error").textContent = "Enter your password";
-      return;
+      return fail("Enter your password", password);
     }
-    if (!state.registered && confirm.value !== password.value) {
-      $("error").textContent = "The passwords do not match";
-      return;
+    if (registering) {
+      if (password.value.length < 6) {
+        return fail("Choose a password of at least 6 characters", password);
+      }
+      if (confirm.value !== password.value) {
+        return fail("The passwords do not match", confirm);
+      }
+      if (!kNamePart.test(first.value.trim())) {
+        return fail("Your character's first name: 2 to 16 Latin letters", first);
+      }
+      if (!kNamePart.test(last.value.trim())) {
+        return fail("Your character's last name: 2 to 16 Latin letters", last);
+      }
     }
-    callEvent("login:submit", JSON.stringify({ password: password.value, confirm: state.registered ? "" : confirm.value, characterName: state.registered ? "" : character.value }));
+    callEvent("login:submit", JSON.stringify({
+      mode,
+      username: name,
+      password: password.value,
+      confirm: registering ? confirm.value : "",
+      characterName: registering ? `${first.value.trim()} ${last.value.trim()}` : "",
+    }));
   });
 
   callEvent("login:ready", null);

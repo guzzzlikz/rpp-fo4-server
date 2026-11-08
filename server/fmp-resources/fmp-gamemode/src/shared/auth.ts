@@ -48,16 +48,25 @@ export interface CinematicShot {
     seconds: number;
 }
 
+// The account is chosen on the login page by its username, not taken from the launcher's nickname:
+// every player who never set a nickname joins as "Player", and keying accounts on that put everyone
+// on one LAN into the same character.
+export type AuthMode = "login" | "register";
+
 export interface AuthPrompt {
-    name: string;
-    registered: boolean;
+    // The username to prefill: the last one typed, or the launcher's nickname when it is a usable one.
+    username: string;
+    // The tab to show: the one the last submit came from, or a guess for the first prompt.
+    mode: AuthMode;
     shots: CinematicShot[];
     attemptsLeft: number;
     error: string | null;
 }
 
-// `confirm` and `characterName` are empty when logging in to an account that exists.
+// `confirm` and `characterName` are empty when logging in.
 export interface AuthSubmit {
+    mode: AuthMode;
+    username: string;
     password: string;
     confirm: string;
     characterName: string;
@@ -66,7 +75,7 @@ export interface AuthSubmit {
 // `characterName` is who the player is in the world: their nametag and their name in chat. With
 // `creating`, the character creator follows: the server opens its menus once the login page is gone.
 export interface AuthDone {
-    name: string;
+    username: string;
     characterName: string;
     firstTime: boolean;
     creating: boolean;
@@ -75,6 +84,20 @@ export interface AuthDone {
 export const kPasswordMin = 6;
 export const kPasswordMax = 128;
 export const kMaxAttempts = 5;
+
+// A username: what the account is called, what staff rank it by ("setadmin <username> owner") and what
+// out-of-character chat shows. Letters, digits and underscores; unique regardless of case.
+export const kUsernameMin = 3;
+export const kUsernameMax = 20;
+const kUsername = new RegExp(`^[A-Za-z0-9_]{${kUsernameMin},${kUsernameMax}}$`);
+
+// The launcher's default nickname: never offered as a username, since everybody who did not set one has it.
+export const kDefaultNickname = "Player";
+
+export const usernameError = (username: string): string | null =>
+    kUsername.test(username) ? null : `A username is ${kUsernameMin} to ${kUsernameMax} letters, digits or underscores`;
+
+export const isUsableUsername = (name: string): boolean => usernameError(name) === null && name.toLowerCase() !== kDefaultNickname.toLowerCase();
 
 // A character is a first and a last name, each a capital and then lower case letters: "John Smith".
 const kCharacterNamePart = /^[A-Z][a-z]{1,15}$/;
@@ -92,5 +115,11 @@ export const characterNameError = (name: string): string | null => {
 export const readAuthSubmit = (payload: unknown): AuthSubmit => {
     const fields: Record<string, unknown> = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
     const text = (value: unknown): string => (typeof value === "string" ? value : "");
-    return { password: text(fields["password"]), confirm: text(fields["confirm"]), characterName: normalizeCharacterName(text(fields["characterName"])) };
+    return {
+        mode: fields["mode"] === "register" ? "register" : "login",
+        username: text(fields["username"]).trim(),
+        password: text(fields["password"]),
+        confirm: text(fields["confirm"]),
+        characterName: normalizeCharacterName(text(fields["characterName"])),
+    };
 };

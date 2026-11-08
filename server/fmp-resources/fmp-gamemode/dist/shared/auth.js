@@ -10,7 +10,7 @@
 //                     done        AuthDone
 //                     placed      after cut: the player stands where they play; bring the screen back
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.readAuthSubmit = exports.characterNameError = exports.normalizeCharacterName = exports.kMaxAttempts = exports.kPasswordMax = exports.kPasswordMin = exports.isCreatorMenu = exports.CreatorMenus = exports.AuthEvents = void 0;
+exports.readAuthSubmit = exports.characterNameError = exports.normalizeCharacterName = exports.isUsableUsername = exports.usernameError = exports.kDefaultNickname = exports.kUsernameMax = exports.kUsernameMin = exports.kMaxAttempts = exports.kPasswordMax = exports.kPasswordMin = exports.isCreatorMenu = exports.CreatorMenus = exports.AuthEvents = void 0;
 exports.AuthEvents = {
     hello: "rp:auth:hello",
     submit: "rp:auth:submit",
@@ -31,6 +31,17 @@ exports.isCreatorMenu = isCreatorMenu;
 exports.kPasswordMin = 6;
 exports.kPasswordMax = 128;
 exports.kMaxAttempts = 5;
+// A username: what the account is called, what staff rank it by ("setadmin <username> owner") and what
+// out-of-character chat shows. Letters, digits and underscores; unique regardless of case.
+exports.kUsernameMin = 3;
+exports.kUsernameMax = 20;
+const kUsername = new RegExp(`^[A-Za-z0-9_]{${exports.kUsernameMin},${exports.kUsernameMax}}$`);
+// The launcher's default nickname: never offered as a username, since everybody who did not set one has it.
+exports.kDefaultNickname = "Player";
+const usernameError = (username) => kUsername.test(username) ? null : `A username is ${exports.kUsernameMin} to ${exports.kUsernameMax} letters, digits or underscores`;
+exports.usernameError = usernameError;
+const isUsableUsername = (name) => (0, exports.usernameError)(name) === null && name.toLowerCase() !== exports.kDefaultNickname.toLowerCase();
+exports.isUsableUsername = isUsableUsername;
 // A character is a first and a last name, each a capital and then lower case letters: "John Smith".
 const kCharacterNamePart = /^[A-Z][a-z]{1,15}$/;
 // The name as typed, tidied: surrounding and repeated spaces dropped, each part capitalized.
@@ -46,6 +57,12 @@ exports.characterNameError = characterNameError;
 const readAuthSubmit = (payload) => {
     const fields = typeof payload === "object" && payload !== null ? payload : {};
     const text = (value) => (typeof value === "string" ? value : "");
-    return { password: text(fields["password"]), confirm: text(fields["confirm"]), characterName: (0, exports.normalizeCharacterName)(text(fields["characterName"])) };
+    return {
+        mode: fields["mode"] === "register" ? "register" : "login",
+        username: text(fields["username"]).trim(),
+        password: text(fields["password"]),
+        confirm: text(fields["confirm"]),
+        characterName: (0, exports.normalizeCharacterName)(text(fields["characterName"])),
+    };
 };
 exports.readAuthSubmit = readAuthSubmit;

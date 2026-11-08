@@ -66,9 +66,26 @@ const setRank = (accountName, levelText) => {
     console.log(`${accountName} is now ${chat_1.kAdminLevelNames[level]}`);
     return `${accountName} is now ${chat_1.kAdminLevelNames[level]}`;
 };
+// Deletes an account and its character, so the username can be registered afresh. Whoever plays it
+// is kicked first, unsaved. Console only: nothing in the game may do this.
+const deleteAccount = (name) => {
+    if (name === undefined) {
+        return "deleteaccount <username>";
+    }
+    const account = Database.findAccount(name);
+    if (account === null) {
+        return `No account named ${name}`;
+    }
+    const kicked = (0, accounts_1.forgetAccount)(account.id, "Your account was deleted");
+    Database.deleteAccount(account.id);
+    return `Deleted account ${account.name} and its character ${account.characterName ?? "(none)"}${kicked !== null ? `; kicked ${kicked}` : ""}`;
+};
 Events.on("consoleCommand", (command, args) => {
     if (command === "setadmin") {
         console.log(setRank(args[0], args[1]));
+    }
+    else if (command === "deleteaccount") {
+        console.log(deleteAccount(args[0]));
     }
 });
 (0, chat_1.registerCommands)(chat_1.AdminLevel.moderator, {
@@ -80,7 +97,7 @@ Events.on("consoleCommand", (command, args) => {
             return;
         }
         for (const staff of (0, accounts_1.loggedInPlayers)().filter((other) => (0, accounts_1.adminLevel)(other) >= chat_1.AdminLevel.moderator)) {
-            Chat.sendToPlayer(staff, `[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${player.nickname}: ${text}`, { color: kStaffChatColor });
+            Chat.sendToPlayer(staff, `[Staff] ${chat_1.kAdminLevelNames[(0, accounts_1.adminLevel)(player)]} ${(0, accounts_1.accountName)(player)}: ${text}`, { color: kStaffChatColor });
         }
     },
     // "/kick <player> [reason]".
@@ -95,7 +112,7 @@ Events.on("consoleCommand", (command, args) => {
             return;
         }
         const reason = rest.join(" ").trim() || "Kicked by staff";
-        console.log(`${player.nickname} kicked ${target.nickname}: ${reason}`);
+        console.log(`${(0, accounts_1.accountName)(player)} kicked ${(0, accounts_1.accountName)(target)}: ${reason}`);
         target.kick(reason);
     },
     // "/goto <player>": to them.
@@ -110,7 +127,7 @@ Events.on("consoleCommand", (command, args) => {
         const target = (0, players_1.findPlayer)(player, args[0]);
         if (target !== null) {
             target.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()));
-            (0, chat_1.reply)(target, `${player.nickname} brought you to them.`);
+            (0, chat_1.reply)(target, `${(0, accounts_1.characterName)(player)} brought you to them.`);
         }
     },
 });

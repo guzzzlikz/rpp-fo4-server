@@ -2,7 +2,7 @@
 // them read it, under their character's name. The commands add actions (/me, /do), shouting,
 // out-of-character talk, local (/b) and global (/ooc), private messages and handing over caps.
 
-import { characterName, isLoggedIn, loggedInPlayers } from "./accounts";
+import { accountName, characterName, isLoggedIn, loggedInPlayers } from "./accounts";
 import { AdminLevel, parseNumber, registerCommands, reply } from "./chat";
 import { findPlayer } from "./players";
 
@@ -96,7 +96,7 @@ registerCommands(AdminLevel.player, {
             return;
         }
         for (const listener of loggedInPlayers()) {
-            Chat.sendToPlayer(listener, `(( [OOC] ${player.nickname}: ${text} ))`, { color: kOocColor });
+            Chat.sendToPlayer(listener, `(( [OOC] ${accountName(player)}: ${text} ))`, { color: kOocColor });
         }
     },
 
@@ -146,6 +146,6 @@ registerCommands(AdminLevel.player, {
         Chat.sendToPlayer(player, `You gave ${amount} caps to ${characterName(target)}.`, { color: kMoneyColor });
         Chat.sendToPlayer(target, `${characterName(player)} gave you ${amount} caps.`, { color: kMoneyColor });
         sayAround(player, kSayRange, `* ${characterName(player)} hands some caps to ${characterName(target)}.`, kActionColor);
-        console.log(`${player.nickname} paid ${amount} caps to ${target.nickname}`);
+        console.log(`${accountName(player)} paid ${amount} caps to ${accountName(target)}`);
     },
 });

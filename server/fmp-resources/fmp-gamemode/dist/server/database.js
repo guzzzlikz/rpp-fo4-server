@@ -5,7 +5,7 @@
 // finishes before the handler that asked returns, so two events can never interleave a read and a
 // write.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.close = exports.markCreated = exports.saveAppearance = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
+exports.close = exports.markCreated = exports.saveAppearance = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.deleteAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
 const node_fs_1 = require("node:fs");
 const node_sqlite_1 = require("node:sqlite");
 // Beside the server, relative to where it runs.
@@ -91,6 +91,8 @@ const statements = {
     createCharacter: prepare("INSERT INTO characters (account_id, name, updated_at) VALUES (?, ?, ?)"),
     characterNameTaken: prepare("SELECT 1 AS taken FROM characters WHERE name = ? COLLATE NOCASE"),
     setAdminLevel: prepare("UPDATE accounts SET admin_level = ? WHERE name = ?"),
+    // The character goes with it: characters.account_id is ON DELETE CASCADE, with foreign_keys on.
+    deleteAccount: prepare("DELETE FROM accounts WHERE id = ?"),
     saveAppearance: prepare("UPDATE characters SET appearance = ?, updated_at = ? WHERE account_id = ?"),
     markCreated: prepare("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
     touchAccount: prepare("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
@@ -119,6 +121,9 @@ exports.createAccount = createAccount;
 // False when no account has that name.
 const setAdminLevel = (name, level) => statements.setAdminLevel.run(level, name).changes > 0;
 exports.setAdminLevel = setAdminLevel;
+// The account and its character. False when there was no such account.
+const deleteAccount = (id) => statements.deleteAccount.run(id).changes > 0;
+exports.deleteAccount = deleteAccount;
 const touchAccount = (id, ip) => {
     statements.touchAccount.run(now(), ip, id);
 };

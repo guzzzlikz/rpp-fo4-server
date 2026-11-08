@@ -1,7 +1,7 @@
 // Staff: ranks kept on the account, and the tools that come with them. The server console appoints the
 // first owner ("setadmin <account> owner"); from then on owners rank others from the game.
 
-import { adminLevel, characterName, loggedInPlayers, refreshAdminLevel } from "./accounts";
+import { accountName, adminLevel, characterName, forgetAccount, loggedInPlayers, refreshAdminLevel } from "./accounts";
 import { AdminLevel, isAdminLevel, kAdminLevelNames, registerCommands, reply } from "./chat";
 import * as Database from "./database";
 import { teleportSpace } from "./places";
@@ -36,9 +36,26 @@ const setRank = (accountName: string | undefined, levelText: string | undefined)
     return `${accountName} is now ${kAdminLevelNames[level]}`;
 };
 
+// Deletes an account and its character, so the username can be registered afresh. Whoever plays it
+// is kicked first, unsaved. Console only: nothing in the game may do this.
+const deleteAccount = (name: string | undefined): string => {
+    if (name === undefined) {
+        return "deleteaccount <username>";
+    }
+    const account: Database.Account | null = Database.findAccount(name);
+    if (account === null) {
+        return `No account named ${name}`;
+    }
+    const kicked: string | null = forgetAccount(account.id, "Your account was deleted");
+    Database.deleteAccount(account.id);
+    return `Deleted account ${account.name} and its character ${account.characterName ?? "(none)"}${kicked !== null ? `; kicked ${kicked}` : ""}`;
+};
+
 Events.on("consoleCommand", (command: string, args: string[]): void => {
     if (command === "setadmin") {
         console.log(setRank(args[0], args[1]));
+    } else if (command === "deleteaccount") {
+        console.log(deleteAccount(args[0]));
     }
 });
 
@@ -51,7 +68,7 @@ registerCommands(AdminLevel.moderator, {
             return;
         }
         for (const staff of loggedInPlayers().filter((other: Player): boolean => adminLevel(other) >= AdminLevel.moderator)) {
-            Chat.sendToPlayer(staff, `[Staff] ${kAdminLevelNames[adminLevel(player)]} ${player.nickname}: ${text}`, { color: kStaffChatColor });
+            Chat.sendToPlayer(staff, `[Staff] ${kAdminLevelNames[adminLevel(player)]} ${accountName(player)}: ${text}`, { color: kStaffChatColor });
         }
     },
 
@@ -67,7 +84,7 @@ registerCommands(AdminLevel.moderator, {
             return;
         }
         const reason: string = rest.join(" ").trim() || "Kicked by staff";
-        console.log(`${player.nickname} kicked ${target.nickname}: ${reason}`);
+        console.log(`${accountName(player)} kicked ${accountName(target)}: ${reason}`);
         target.kick(reason);
     },
 
@@ -84,7 +101,7 @@ registerCommands(AdminLevel.moderator, {
         const target: Player | null = findPlayer(player, args[0]);
         if (target !== null) {
             target.teleport(player.position, player.heading, teleportSpace(player.getSpace()));
-            reply(target, `${player.nickname} brought you to them.`);
+            reply(target, `${characterName(player)} brought you to them.`);
         }
     },
 });

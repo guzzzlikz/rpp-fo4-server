@@ -1,12 +1,15 @@
 // Accounts: nobody plays until they have logged in. A player who joins is held in a virtual world of
 // their own at the lobby, where their client flies a cinematic camera over the wasteland behind the
-// login page. Logging in (or registering, the first time a name is seen) brings back the character
-// and the place the account last stood, from the SQLite database. The conversation itself is in
-// src/shared/auth.ts.
+// login page. Logging in (or registering a new username) brings back the character and the place the
+// account last stood, from the SQLite database. The conversation itself is in src/shared/auth.ts.
+//
+// The account is the username typed on the page, not the launcher's nickname: players who never set a
+// nickname all join as "Player", and keying on it put them all into one character. One account is
+// played by one player at a time.
 
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
-import { type AuthDone, AuthEvents, type AuthPrompt, type AuthSubmit, type CinematicShot, characterNameError, kMaxAttempts, kPasswordMax, kPasswordMin, readAuthSubmit } from "../shared/auth";
+import { type AuthDone, AuthEvents, type AuthMode, type AuthPrompt, type AuthSubmit, type CinematicShot, characterNameError, isUsableUsername, kMaxAttempts, kPasswordMax, kPasswordMin, readAuthSubmit, usernameError } from "../shared/auth";
 import { errorMessage } from "../shared/errors";
 import { AdminLevel, isAdminLevel, reply } from "./chat";
 import * as Creator from "./creator";
@@ -49,6 +52,8 @@ const kSaltBytes = 16;
 // Who a logged-in player is.
 interface Identity {
     accountId: number;
+    // The username, as the account was registered.
+    accountName: string;
     characterName: string;
     adminLevel: AdminLevel;
 }
@@ -58,6 +63,9 @@ interface Session {
     // Null until the player logs in.
     identity: Identity | null;
     attemptsLeft: number;
+    // What the page last sent, to show it again with an error.
+    username: string;
+    mode: AuthMode;
     loginTimer: Timeout | null;
     // playerCharacterLoad has fired: setCharacter works from here.
     characterReady: boolean;
@@ -88,20 +96,38 @@ export const isLoggedIn = (player: Player): boolean => identityOf(player) !== nu
 // Their character's name once logged in; their nickname before.
 export const characterName = (player: Player): string => identityOf(player)?.characterName ?? player.nickname;
 
+// Their username once logged in; their launcher nickname before.
+export const accountName = (player: Player): string => identityOf(player)?.accountName ?? player.nickname;
+
 export const adminLevel = (player: Player): AdminLevel => identityOf(player)?.adminLevel ?? AdminLevel.player;
 
 // The players who have logged in.
 export const loggedInPlayers = (): Player[] => [...sessions.values()].filter((session: Session): boolean => session.identity !== null).map((session: Session): Player => session.player);
 
+const sessionOfAccount = (accountId: number): Session | undefined =>
+    [...sessions.values()].find((session: Session): boolean => session.identity?.accountId === accountId);
+
 // Applies a rank changed in the database to its account's player, if they are on.
-export const refreshAdminLevel = (accountName: string, level: AdminLevel): Player | null => {
+export const refreshAdminLevel = (name: string, level: AdminLevel): Player | null => {
     for (const session of sessions.values()) {
-        if (session.identity !== null && session.player.nickname.toLowerCase() === accountName.toLowerCase()) {
+        if (session.identity !== null && session.identity.accountName.toLowerCase() === name.toLowerCase()) {
             session.identity.adminLevel = level;
             return session.player;
         }
     }
     return null;
+};
+
+// Before an account is deleted: whoever plays it is kicked without being saved, so that nothing
+// writes the account back. Their nickname, or null when nobody had it.
+export const forgetAccount = (accountId: number, reason: string): string | null => {
+    const session: Session | undefined = sessionOfAccount(accountId);
+    if (session === undefined) {
+        return null;
+    }
+    session.identity = null;
+    session.player.kick(reason);
+    return session.player.nickname;
 };
 
 const send = <T>(player: Player, event: string, payload: T): void => {
@@ -117,12 +143,15 @@ const passwordMatches = (password: string, account: Database.Account): boolean =
 };
 
 const prompt = (session: Session, error: string | null = null): void => {
-    const registered: boolean = Database.findAccount(session.player.nickname) !== null;
-    send<AuthPrompt>(session.player, AuthEvents.prompt, { name: session.player.nickname, registered, shots: [...kShots], attemptsLeft: session.attemptsLeft, error });
+    send<AuthPrompt>(session.player, AuthEvents.prompt, { username: session.username, mode: session.mode, shots: [...kShots], attemptsLeft: session.attemptsLeft, error });
 };
 
 const open = (player: Player, characterReady: boolean): Session => {
-    const session: Session = { player, identity: null, arrival: null, attemptsLeft: kMaxAttempts, loginTimer: null, characterReady, pendingDocument: null, playSecondsBefore: 0, playingSince: 0 };
+    // A nickname set in the launcher is offered as the username, and the tab follows whether it is
+    // taken; the default "Player" is offered to nobody.
+    const suggested: string = isUsableUsername(player.nickname) ? player.nickname : "";
+    const mode: AuthMode = suggested !== "" && Database.findAccount(suggested) !== null ? "login" : "register";
+    const session: Session = { player, identity: null, arrival: null, attemptsLeft: kMaxAttempts, username: suggested, mode, loginTimer: null, characterReady, pendingDocument: null, playSecondsBefore: 0, playingSince: 0 };
     sessions.set(player.id, session);
     return session;
 };
@@ -179,8 +208,8 @@ const enterWorld = (session: Session, identity: Identity, firstTime: boolean): v
 
     // Until the creator has run to its end once, it follows every login.
     const creating: boolean = stored?.created !== true;
-    send<AuthDone>(player, AuthEvents.done, { name: player.nickname, characterName: identity.characterName, firstTime, creating });
-    console.log(`${player.nickname} ${firstTime ? "registered" : "logged in"} as ${identity.characterName} (account ${accountId})${creating ? ", to the character creator" : ""}`);
+    send<AuthDone>(player, AuthEvents.done, { username: identity.accountName, characterName: identity.characterName, firstTime, creating });
+    console.log(`${player.nickname} ${firstTime ? "registered" : "logged in"} as ${identity.accountName} / ${identity.characterName} (account ${accountId})${creating ? ", to the character creator" : ""}`);
     session.arrival = { stored, timer: setTimeout((): void => arrive(session), kArrivalTimeoutMs) };
 };
 
@@ -252,7 +281,15 @@ const save = (session: Session): void => {
 };
 
 const register = (session: Session, submitted: AuthSubmit): void => {
-    const { password, confirm, characterName: name }: AuthSubmit = submitted;
+    const { username, password, confirm, characterName: name }: AuthSubmit = submitted;
+    if (!isUsableUsername(username)) {
+        prompt(session, "Choose your own username, not Player");
+        return;
+    }
+    if (Database.findAccount(username) !== null) {
+        prompt(session, `The username ${username} is taken. Log in, or choose another one`);
+        return;
+    }
     const nameError: string | null = characterNameError(name);
     if (nameError !== null) {
         prompt(session, nameError);
@@ -271,23 +308,31 @@ const register = (session: Session, submitted: AuthSubmit): void => {
         return;
     }
     const salt: string = randomBytes(kSaltBytes).toString("hex");
-    const accountId: number = Database.createAccount(session.player.nickname, hashPassword(password, salt), salt, session.player.steamId, name);
-    enterWorld(session, { accountId, characterName: name, adminLevel: AdminLevel.player }, true);
+    const accountId: number = Database.createAccount(username, hashPassword(password, salt), salt, session.player.steamId, name);
+    enterWorld(session, { accountId, accountName: username, characterName: name, adminLevel: AdminLevel.player }, true);
 };
 
-const logIn = (session: Session, account: Database.Account, submitted: AuthSubmit): void => {
-    if (passwordMatches(submitted.password, account)) {
-        const level: AdminLevel = isAdminLevel(account.adminLevel) ? account.adminLevel : AdminLevel.player;
-        enterWorld(session, { accountId: account.id, characterName: account.characterName ?? account.name, adminLevel: level }, false);
+const logIn = (session: Session, submitted: AuthSubmit): void => {
+    const account: Database.Account | null = Database.findAccount(submitted.username);
+    // An unknown username and a wrong password read the same, and cost the same attempt.
+    if (account === null || !passwordMatches(submitted.password, account)) {
+        session.attemptsLeft--;
+        console.warn(`${submitted.username}: failed login from ${session.player.nickname} (${session.player.getIP()}), ${session.attemptsLeft} attempts left`);
+        if (session.attemptsLeft <= 0) {
+            session.player.kick("Too many failed logins");
+            return;
+        }
+        prompt(session, "Wrong username or password");
         return;
     }
-    session.attemptsLeft--;
-    console.warn(`${account.name}: wrong password from ${session.player.getIP()}, ${session.attemptsLeft} attempts left`);
-    if (session.attemptsLeft <= 0) {
-        session.player.kick("Too many failed logins");
+    const playing: Session | undefined = sessionOfAccount(account.id);
+    if (playing !== undefined) {
+        console.warn(`${account.name}: second login from ${session.player.nickname} (${session.player.getIP()}) refused, already played by ${playing.player.nickname}`);
+        prompt(session, `${account.name} is already in the game`);
         return;
     }
-    prompt(session, "Wrong password");
+    const level: AdminLevel = isAdminLevel(account.adminLevel) ? account.adminLevel : AdminLevel.player;
+    enterWorld(session, { accountId: account.id, accountName: account.name, characterName: account.characterName ?? account.name, adminLevel: level }, false);
 };
 
 Events.on("playerConnect", (player: Player): void => {
@@ -359,12 +404,18 @@ Events.onClient(AuthEvents.submit, (sender: unknown, payload: unknown): void => 
     if (session === undefined || session.identity !== null) {
         return;
     }
-    const account: Database.Account | null = Database.findAccount(session.player.nickname);
     const submitted: AuthSubmit = readAuthSubmit(payload);
-    if (account === null) {
+    session.username = submitted.username;
+    session.mode = submitted.mode;
+    const error: string | null = usernameError(submitted.username);
+    if (error !== null) {
+        prompt(session, error);
+        return;
+    }
+    if (submitted.mode === "register") {
         register(session, submitted);
     } else {
-        logIn(session, account, submitted);
+        logIn(session, submitted);
     }
 });
 

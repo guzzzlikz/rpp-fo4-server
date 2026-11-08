@@ -152,6 +152,8 @@ const statements = {
     createCharacter: prepare<[number, string, number]>("INSERT INTO characters (account_id, name, updated_at) VALUES (?, ?, ?)"),
     characterNameTaken: prepare<[string], { taken: number }>("SELECT 1 AS taken FROM characters WHERE name = ? COLLATE NOCASE"),
     setAdminLevel: prepare<[number, string]>("UPDATE accounts SET admin_level = ? WHERE name = ?"),
+    // The character goes with it: characters.account_id is ON DELETE CASCADE, with foreign_keys on.
+    deleteAccount: prepare<[number]>("DELETE FROM accounts WHERE id = ?"),
     saveAppearance: prepare<[string, number, number]>("UPDATE characters SET appearance = ?, updated_at = ? WHERE account_id = ?"),
     markCreated: prepare<[number, number]>("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
     touchAccount: prepare<[number, string, number]>("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
@@ -184,6 +186,9 @@ export const createAccount = (name: string, passwordHash: string, passwordSalt: 
 
 // False when no account has that name.
 export const setAdminLevel = (name: string, level: number): boolean => statements.setAdminLevel.run(level, name).changes > 0;
+
+// The account and its character. False when there was no such account.
+export const deleteAccount = (id: number): boolean => statements.deleteAccount.run(id).changes > 0;
 
 export const touchAccount = (id: number, ip: string): void => {
     statements.touchAccount.run(now(), ip, id);
