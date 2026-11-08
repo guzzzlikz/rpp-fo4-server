@@ -1,6 +1,7 @@
 "use strict";
 // Entry point of the default gamemode. Each feature registers its own handlers and commands from a
-// module of its own; this file owns what is left: the join log, the death rule and command dispatch.
+// module of its own; this file owns what is left: the join log and command dispatch. Death and
+// respawning are in respawn.ts.
 Object.defineProperty(exports, "__esModule", { value: true });
 const accounts_1 = require("./accounts");
 require("./admin");
@@ -9,9 +10,8 @@ const chat_1 = require("./chat");
 require("./commands");
 require("./explosives");
 require("./powerarmor");
+require("./respawn");
 require("./roleplay");
-// Nothing respawns a player on its own: this is the server's whole death rule.
-const kRespawnDelayMs = 5000;
 // What the server answers itself, after the gamemode has seen the line (core/server.cpp,
 // OnChatCommand): not the gamemode's to call unknown.
 const kServerCommands = new Set(["invset", "npc"]);
@@ -23,12 +23,6 @@ Events.on("playerReady", (player) => {
 });
 Events.on("playerDisconnect", (player) => {
     console.log(`${player.nickname} left`);
-});
-Events.on("playerDeath", (player, killer) => {
-    console.log(killer !== null ? `${killer.nickname} killed ${player.nickname}` : `${player.nickname} died`);
-    setTimeout(() => {
-        player.respawn();
-    }, kRespawnDelayMs);
 });
 (0, chat_1.registerCommands)(chat_1.AdminLevel.player, {
     // "/help": every command the sender's rank may run.

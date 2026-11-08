@@ -13,6 +13,7 @@
 |---|---|---|
 | `src/shared/auth.ts`, `src/server/accounts.ts`, `ui/login/index.html` | аккаунт = Username из формы, а не ник лаунчера; вкладки Log in / Create account; имя и фамилия персонажа отдельными полями; запрет двойного входа | все без ника попадали в один аккаунт `Player` |
 | `src/server/admin.ts`, `roleplay.ts` | консольная `deleteaccount`; Username в OOC, чате персонала и логах | сброс профилей; везде было `Player` |
+| `src/server/respawn.ts` (новый), `index.ts` | возрождение с повторами, поиск «застрявших» мёртвых, `/revive` | игроки иногда не возрождались после смерти |
 | `src/server/database.ts` | `better-sqlite3` заменён на встроенный `node:sqlite`; `deleteAccount` | нативный модуль не загружается в Windows `FMPServer.exe`, см. [known-issues.md](../known-issues.md) |
 | `package.json` | удалены `better-sqlite3` и `@types/better-sqlite3`, добавлен `@types/node` 25.9.9 (сервер работает на Node 25.6.1) | то же |
 
@@ -46,7 +47,7 @@
 | Ранг | Число | Что даёт |
 |---|---|---|
 | `player` | 0 | `/help`, `/char`, RP-чат: `/me`, `/do`, `/s`, `/b`, `/ooc`, `/pm`, `/pay` |
-| `moderator` | 1 | + `/a` (чат персонала), `/kick`, `/goto`, `/gethere` |
+| `moderator` | 1 | + `/a` (чат персонала), `/kick`, `/goto`, `/gethere`, `/revive` |
 | `admin` | 2 | + `/tp`, `/give`, `/time`, `/timescale`, `/weather`, `/pa`, `/xp`, `/level`, `/perk`, `/special`, `/value`, `/caps`, `/look`, `/outfit`, `/kill`, `/fire`, `/items`, `/mines` |
 | `owner` | 3 | + `/setadmin` (выдавать ранги из игры) |
 
@@ -79,6 +80,31 @@ deleteaccount <username>
 3. Второй игрок пытается войти в аккаунт первого (вкладка Log in, Username первого, верный пароль).
    **Ожидается:** ошибка `… is already in the game`.
 4. `/ooc привет` от каждого: в чате видны разные Username, а не `Player`.
+
+## Смерть и возрождение
+
+Через 5 секунд после смерти игрок возрождается там, где упал (`src/server/respawn.ts`).
+
+Раньше gamemode вызывал `respawn()` один раз, и если команда терялась, игрок оставался лежать навсегда (баг от 2026-11-08). Теперь:
+- после `respawn()` сервер каждые 2 секунды проверяет, встал ли игрок, и повторяет, до 10 попыток;
+- раз в 10 секунд и сразу после старта gamemode сервер ищет мёртвых игроков, для которых возрождение не запланировано (например, умер во время `ensure fmp-gamemode`), и поднимает их;
+- если 10 попыток не помогли, игроку приходит сообщение в чат, а в лог пишется ошибка;
+- **`/revive <игрок>`** (moderator+) поднимает вручную; игрок ищется по имени персонажа или id.
+
+**Что смотреть в логе сервера, если кто-то снова «завис»:**
+
+| Строка | Значит |
+|---|---|
+| `<username> died` / `<a> killed <b>` | смерть получена |
+| `still down: respawn attempt N/10` | игра не применила возрождение, сервер повторяет |
+| `is up after N respawn attempts` | встал со N-й попытки |
+| `found down with no respawn pending` | смерть прошла мимо gamemode, сервер подхватил |
+| `still down after 10 respawn attempts` | не помогло; пришли этот кусок лога и `client\logs\FMP.log` игрока |
+
+**Как проверить:**
+1. В игре (admin) выполни `/kill`. **Ожидается:** в логе `<username> died`, через ~5 секунд игрок встаёт; строк `still down` нет или их немного.
+2. Убей себя через `/kill` и сразу выполни в консоли сервера `ensure fmp-gamemode`. **Ожидается:** в течение 10 секунд `found down with no respawn pending; respawning`, игрок встаёт.
+3. Модератор: `/revive <имя>` на живом игроке отвечает `… is not down`.
 
 ## Консоль сервера
 

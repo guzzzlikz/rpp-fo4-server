@@ -1,5 +1,6 @@
 // Entry point of the default gamemode. Each feature registers its own handlers and commands from a
-// module of its own; this file owns what is left: the join log, the death rule and command dispatch.
+// module of its own; this file owns what is left: the join log and command dispatch. Death and
+// respawning are in respawn.ts.
 
 import { adminLevel, isLoggedIn } from "./accounts";
 import "./admin";
@@ -8,10 +9,8 @@ import { AdminLevel, type Command, commandsFor, findCommand, kAdminLevelNames, r
 import "./commands";
 import "./explosives";
 import "./powerarmor";
+import "./respawn";
 import "./roleplay";
-
-// Nothing respawns a player on its own: this is the server's whole death rule.
-const kRespawnDelayMs = 5000;
 
 // What the server answers itself, after the gamemode has seen the line (core/server.cpp,
 // OnChatCommand): not the gamemode's to call unknown.
@@ -27,13 +26,6 @@ Events.on("playerReady", (player: Player): void => {
 
 Events.on("playerDisconnect", (player: Player): void => {
     console.log(`${player.nickname} left`);
-});
-
-Events.on("playerDeath", (player: Player, killer: Player | null): void => {
-    console.log(killer !== null ? `${killer.nickname} killed ${player.nickname}` : `${player.nickname} died`);
-    setTimeout((): void => {
-        player.respawn();
-    }, kRespawnDelayMs);
 });
 
 registerCommands(AdminLevel.player, {
