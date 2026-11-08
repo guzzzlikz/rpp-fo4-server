@@ -117,6 +117,8 @@ Respawn: body at (...), target (...), moved false, GetUpBegin accepted false
 
 `Paralysis` ставится как базовое значение, а оно сохраняется в персонаже. Если игрок выйдет за эти 1,5 с, при следующем входе паралич снимается (`arrived paralysed … cleared` в логе).
 
+Имена параметров (actor values) FMP берёт из файлов игры, и имя `Paralysis` на сервере тестеров он не принял. Поэтому gamemode при первом падении пробует имя, а если оно не подходит, берёт form ID `0x2F2`. Этот ID взят из сообщества («`modav 2f2`» в консоли), официально не подтверждён. Проверить его можно в консоли игры: `help paralysis 4`. Если ID там другой, поправь `kParalysisCandidates` в `src/server/getup.ts`. После подъёма возвращается прежнее значение, а не принудительный 0, поэтому чужой ID ничего не испортит надолго.
+
 Перестановку на месте (`teleport`) из обхода убрали: внутри интерьеров клиент FMP её отклоняет (`Teleport ignored: not in the Commonwealth` в `FMP.log`), а тело в рэгдолле за ней не следует.
 
 Если не помогло, игрок вводит **`/unstuck`**: то же самое вручную. Повтор через 5–30 секунд проводит через смерть заново, но только с убранным оружием.
@@ -124,7 +126,9 @@ Respawn: body at (...), target (...), moved false, GetUpBegin accepted false
 В логе сервера после каждой смерти:
 `<username>: their game has them standing (weapon out at death: yes|no, now: yes|no, camera released|held|skipped); getting them up through a fall | back to stance…`
 затем, для смерти с оружием: `knocked down for 1.5 s so their game gets them up itself` и `let up`.
-- `Paralysis 1 refused (…)` или `could not knock them down` значит, что FMP не принял значение; обход не сработал, пришли эту строку;
+- `getup: Paralysis goes to FMP as …` (один раз за запуск) показывает, что принято: имя или `form 0x2F2`;
+- `FMP takes no Paralysis actor value`, `Paralysis (…) 1 refused (…)` или `could not knock them down` значит, что FMP не принял ни имя, ни ID; обход не сработал, пришли эту строку;
+- `knocked down …`, но персонаж не упал и не встал: ID не тот, проверь `help paralysis 4`;
 - `camera held` значит, что камеру держала игра (камера смерти).
 
 В `client\logs\FMP.log` игрока: `[life] down with a weapon out`, `[life] up after N s`, `[life] shake (respawn) done`, и строки FMP `Graph event …`, `Respawn: …`. Их и прикладывать к отчёту разработчикам FMP.
