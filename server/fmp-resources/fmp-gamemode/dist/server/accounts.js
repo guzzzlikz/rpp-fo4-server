@@ -48,6 +48,7 @@ const errors_1 = require("../shared/errors");
 const chat_1 = require("./chat");
 const Creator = __importStar(require("./creator"));
 const Database = __importStar(require("./database"));
+const Equipment = __importStar(require("./equipment"));
 const places_1 = require("./places");
 // Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
 // (core/frontend/main_menu.h, kSessionCell). The move there runs under the join's loading screen,
@@ -231,6 +232,9 @@ const arrive = (session) => {
         player.teleport((0, places_1.toVector)(kSpawn.position), kSpawn.heading, { worldSpace: places_1.kCommonwealth }, { loadScreen: false });
     }
     send(player, auth_1.AuthEvents.placed, null);
+    // What they had in hands and wore when they left goes back on: the document only kept the bag.
+    Equipment.begin(player);
+    Equipment.track(player, Database.findEquipment(identity.accountId));
     if (creating) {
         Creator.begin(player, identity.accountId, identity.characterName);
     }
@@ -251,6 +255,10 @@ const save = (session) => {
         heading: player.heading,
         playSeconds: session.playSecondsBefore + Math.floor((Date.now() - session.playingSince) / 1000),
     });
+    const equipment = Equipment.lastEquipment(player);
+    if (equipment !== null) {
+        Database.saveEquipment(session.identity.accountId, equipment);
+    }
 };
 const register = (session, submitted) => {
     const { username, password, confirm, characterName: name } = submitted;
@@ -336,6 +344,7 @@ Events.on("playerDisconnect", (player) => {
         return;
     }
     save(session);
+    Equipment.untrack(player);
     stopLoginTimer(session);
     if (session.arrival !== null) {
         clearTimeout(session.arrival.timer);

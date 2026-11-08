@@ -8,6 +8,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const accounts_1 = require("./accounts");
 const chat_1 = require("./chat");
+const equipment_1 = require("./equipment");
 const players_1 = require("./players");
 const kRespawnDelayMs = 5000;
 // How long to wait for their game to report them up before asking again.
@@ -33,6 +34,10 @@ const tryRespawn = (player, attempt) => {
     if (!player.isDead) {
         if (attempt > 2) {
             console.log(`${(0, accounts_1.accountName)(player)} is up after ${attempt - 1} respawn attempts`);
+        }
+        // Up again after a respawn we sent: what they held and wore goes back on.
+        if (attempt > 1) {
+            (0, equipment_1.restoreAfterRespawn)(player);
         }
         return;
     }

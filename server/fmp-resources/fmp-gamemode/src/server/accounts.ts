@@ -14,6 +14,7 @@ import { errorMessage } from "../shared/errors";
 import { AdminLevel, isAdminLevel, reply } from "./chat";
 import * as Creator from "./creator";
 import * as Database from "./database";
+import * as Equipment from "./equipment";
 import { Places, above, kCommonwealth, teleportSpace, toVector } from "./places";
 
 // Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
@@ -257,6 +258,9 @@ const arrive = (session: Session): void => {
         player.teleport(toVector(kSpawn.position), kSpawn.heading, { worldSpace: kCommonwealth }, { loadScreen: false });
     }
     send<null>(player, AuthEvents.placed, null);
+    // What they had in hands and wore when they left goes back on: the document only kept the bag.
+    Equipment.begin(player);
+    Equipment.track(player, Database.findEquipment(identity.accountId));
 
     if (creating) {
         Creator.begin(player, identity.accountId, identity.characterName);
@@ -278,6 +282,10 @@ const save = (session: Session): void => {
         heading: player.heading,
         playSeconds: session.playSecondsBefore + Math.floor((Date.now() - session.playingSince) / 1000),
     });
+    const equipment: Equipment.Equipment | null = Equipment.lastEquipment(player);
+    if (equipment !== null) {
+        Database.saveEquipment(session.identity.accountId, equipment);
+    }
 };
 
 const register = (session: Session, submitted: AuthSubmit): void => {
@@ -370,6 +378,7 @@ Events.on("playerDisconnect", (player: Player): void => {
         return;
     }
     save(session);
+    Equipment.untrack(player);
     stopLoginTimer(session);
     if (session.arrival !== null) {
         clearTimeout(session.arrival.timer);

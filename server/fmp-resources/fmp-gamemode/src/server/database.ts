@@ -45,6 +45,9 @@ const kMigrations: readonly string[] = [
     `ALTER TABLE characters ADD COLUMN appearance TEXT;`,
     // Set once the character creator has run to its end: until then every login runs it again.
     `ALTER TABLE characters ADD COLUMN created INTEGER NOT NULL DEFAULT 0;`,
+    // What the character has in hands and wears, as JSON {weapon, outfit}: the document keeps only
+    // what they carry, so without it everything comes back unequipped.
+    `ALTER TABLE characters ADD COLUMN equipment TEXT;`,
 ];
 
 export interface Account {
@@ -55,6 +58,12 @@ export interface Account {
     adminLevel: number;
     // Null for an account whose character was never named.
     characterName: string | null;
+}
+
+// What a character has in their hands and wears: form IDs.
+export interface Equipment {
+    weapon: number | null;
+    outfit: number[];
 }
 
 // A character as the database keeps it. Saved with a null document, it keeps the one already stored:
@@ -158,6 +167,8 @@ const statements = {
     markCreated: prepare<[number, number]>("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
     touchAccount: prepare<[number, string, number]>("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
     findCharacter: prepare<[number], CharacterRow>("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
+    findEquipment: prepare<[number], { equipment: string | null }>("SELECT equipment FROM characters WHERE account_id = ?"),
+    saveEquipment: prepare<[string, number]>("UPDATE characters SET equipment = ? WHERE account_id = ?"),
     saveCharacter: prepare<[number, string | null, number, number, number | null, number | null, number | null, number, number, number]>(
         `INSERT INTO characters (account_id, document, world_space, interior_cell, x, y, z, heading, play_seconds, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -214,6 +225,28 @@ export const saveCharacter = (accountId: number, character: Omit<StoredCharacter
     const document: string | null = character.document === null ? null : JSON.stringify(character.document);
     const position: Point | null = character.position;
     statements.saveCharacter.run(accountId, document, character.space.worldSpace, character.space.interiorCell, position?.x ?? null, position?.y ?? null, position?.z ?? null, character.heading, character.playSeconds, now());
+};
+
+// What the character last had equipped; null when nothing was ever stored or it does not read.
+export const findEquipment = (accountId: number): Equipment | null => {
+    const json: string | null | undefined = statements.findEquipment.get(accountId)?.equipment;
+    if (json === null || json === undefined) {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(json) as { weapon?: unknown; outfit?: unknown };
+        const isForm = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value > 0;
+        return {
+            weapon: isForm(parsed.weapon) ? parsed.weapon : null,
+            outfit: Array.isArray(parsed.outfit) ? parsed.outfit.filter(isForm) : [],
+        };
+    } catch {
+        return null;
+    }
+};
+
+export const saveEquipment = (accountId: number, equipment: Equipment): void => {
+    statements.saveEquipment.run(JSON.stringify(equipment), accountId);
 };
 
 export const saveAppearance = (accountId: number, appearance: string): void => {

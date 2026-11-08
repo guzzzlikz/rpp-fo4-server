@@ -7,6 +7,7 @@
 
 import { accountName } from "./accounts";
 import { AdminLevel, registerCommands, reply } from "./chat";
+import { restoreAfterRespawn } from "./equipment";
 import { findPlayer } from "./players";
 
 const kRespawnDelayMs = 5000;
@@ -37,6 +38,10 @@ const tryRespawn = (player: Player, attempt: number): void => {
     if (!player.isDead) {
         if (attempt > 2) {
             console.log(`${accountName(player)} is up after ${attempt - 1} respawn attempts`);
+        }
+        // Up again after a respawn we sent: what they held and wore goes back on.
+        if (attempt > 1) {
+            restoreAfterRespawn(player);
         }
         return;
     }

@@ -5,7 +5,7 @@
 // finishes before the handler that asked returns, so two events can never interleave a read and a
 // write.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.close = exports.markCreated = exports.saveAppearance = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.deleteAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
+exports.close = exports.markCreated = exports.saveAppearance = exports.saveEquipment = exports.findEquipment = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.deleteAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
 const node_fs_1 = require("node:fs");
 const node_sqlite_1 = require("node:sqlite");
 // Beside the server, relative to where it runs.
@@ -43,6 +43,9 @@ const kMigrations = [
     `ALTER TABLE characters ADD COLUMN appearance TEXT;`,
     // Set once the character creator has run to its end: until then every login runs it again.
     `ALTER TABLE characters ADD COLUMN created INTEGER NOT NULL DEFAULT 0;`,
+    // What the character has in hands and wears, as JSON {weapon, outfit}: the document keeps only
+    // what they carry, so without it everything comes back unequipped.
+    `ALTER TABLE characters ADD COLUMN equipment TEXT;`,
 ];
 // Runs `work` inside one transaction: all of it lands, or none of it does.
 const inTransaction = (db, work) => {
@@ -97,6 +100,8 @@ const statements = {
     markCreated: prepare("UPDATE characters SET created = 1, updated_at = ? WHERE account_id = ?"),
     touchAccount: prepare("UPDATE accounts SET last_login = ?, last_ip = ? WHERE id = ?"),
     findCharacter: prepare("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
+    findEquipment: prepare("SELECT equipment FROM characters WHERE account_id = ?"),
+    saveEquipment: prepare("UPDATE characters SET equipment = ? WHERE account_id = ?"),
     saveCharacter: prepare(`INSERT INTO characters (account_id, document, world_space, interior_cell, x, y, z, heading, play_seconds, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(account_id) DO UPDATE SET
@@ -150,6 +155,29 @@ const saveCharacter = (accountId, character) => {
     statements.saveCharacter.run(accountId, document, character.space.worldSpace, character.space.interiorCell, position?.x ?? null, position?.y ?? null, position?.z ?? null, character.heading, character.playSeconds, now());
 };
 exports.saveCharacter = saveCharacter;
+// What the character last had equipped; null when nothing was ever stored or it does not read.
+const findEquipment = (accountId) => {
+    const json = statements.findEquipment.get(accountId)?.equipment;
+    if (json === null || json === undefined) {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(json);
+        const isForm = (value) => typeof value === "number" && Number.isInteger(value) && value > 0;
+        return {
+            weapon: isForm(parsed.weapon) ? parsed.weapon : null,
+            outfit: Array.isArray(parsed.outfit) ? parsed.outfit.filter(isForm) : [],
+        };
+    }
+    catch {
+        return null;
+    }
+};
+exports.findEquipment = findEquipment;
+const saveEquipment = (accountId, equipment) => {
+    statements.saveEquipment.run(JSON.stringify(equipment), accountId);
+};
+exports.saveEquipment = saveEquipment;
 const saveAppearance = (accountId, appearance) => {
     statements.saveAppearance.run(appearance, now(), accountId);
 };
