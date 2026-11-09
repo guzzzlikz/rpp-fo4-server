@@ -43,6 +43,8 @@ interface Config {
     crackOnBlastDamage: number;
     blockedMenus: Record<string, number>;
     strictPipboyMenu: boolean;
+    // FMP hides the HUD only as a whole: off by default, the HUD stays the game's own.
+    hideHud: boolean;
 }
 
 const kDefaults: Config = {
@@ -52,6 +54,7 @@ const kDefaults: Config = {
     crackOnBlastDamage: 0,
     blockedMenus: { VATSMenu: Cap.vats },
     strictPipboyMenu: false,
+    hideHud: false,
 };
 
 const describe = (thrown: unknown): string => (thrown instanceof Error ? thrown.message : String(thrown));
@@ -123,6 +126,7 @@ const loadConfig = (): Config => {
         crackOnBlastDamage: typeof crack === "number" && crack > 0 ? crack : 0,
         blockedMenus,
         strictPipboyMenu: raw["strictPipboyMenu"] === true,
+        hideHud: raw["hideHud"] === true,
     };
     problems.forEach((problem: string): void => console.warn(`pipboy.json: ${problem}`));
     return config;
@@ -186,6 +190,7 @@ const push = (player: Player, why: string): void => {
         cracked: state.stored.cracked,
         blockedMenus: config.blockedMenus,
         strictPipboyMenu: config.strictPipboyMenu,
+        hideHud: config.hideHud,
     };
     const json: string = JSON.stringify(message);
     if (json === state.sent) {

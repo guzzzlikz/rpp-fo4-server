@@ -66,6 +66,7 @@ const kDefaults = {
     crackOnBlastDamage: 0,
     blockedMenus: { VATSMenu: pipboy_1.Cap.vats },
     strictPipboyMenu: false,
+    hideHud: false,
 };
 const describe = (thrown) => (thrown instanceof Error ? thrown.message : String(thrown));
 // "full", ["map", "gps"], "0x0018" or a number.
@@ -134,6 +135,7 @@ const loadConfig = () => {
         crackOnBlastDamage: typeof crack === "number" && crack > 0 ? crack : 0,
         blockedMenus,
         strictPipboyMenu: raw["strictPipboyMenu"] === true,
+        hideHud: raw["hideHud"] === true,
     };
     problems.forEach((problem) => console.warn(`pipboy.json: ${problem}`));
     return config;
@@ -179,6 +181,7 @@ const push = (player, why) => {
         cracked: state.stored.cracked,
         blockedMenus: config.blockedMenus,
         strictPipboyMenu: config.strictPipboyMenu,
+        hideHud: config.hideHud,
     };
     const json = JSON.stringify(message);
     if (json === state.sent) {

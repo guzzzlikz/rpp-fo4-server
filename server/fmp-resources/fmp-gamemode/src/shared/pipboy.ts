@@ -63,6 +63,8 @@ export interface PipboyState {
     blockedMenus: Record<string, number>;
     // No Pip-Boy screen at all without one of map, radio, biomonitor or gps: FMP cannot lock its tabs.
     strictPipboyMenu: boolean;
+    // Hide the whole HUD without compass, geiger or biomonitor. Off: the HUD is the game's own.
+    hideHud: boolean;
 }
 
 const asRecord = (payload: unknown): Record<string, unknown> => {
@@ -94,5 +96,6 @@ export const readPipboyState = (payload: unknown): PipboyState => {
         cracked: fields["cracked"] === true,
         blockedMenus: menus,
         strictPipboyMenu: fields["strictPipboyMenu"] === true,
+        hideHud: fields["hideHud"] === true,
     };
 };

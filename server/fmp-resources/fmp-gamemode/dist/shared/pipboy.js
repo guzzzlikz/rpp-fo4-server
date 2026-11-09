@@ -79,6 +79,7 @@ const readPipboyState = (payload) => {
         cracked: fields["cracked"] === true,
         blockedMenus: menus,
         strictPipboyMenu: fields["strictPipboyMenu"] === true,
+        hideHud: fields["hideHud"] === true,
     };
 };
 exports.readPipboyState = readPipboyState;
