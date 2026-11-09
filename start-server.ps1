@@ -39,6 +39,8 @@ if (-not (Test-Path $exe)) {
 }
 
 Set-Location $server
+# The server writes UTF-8: without this the console shows Cyrillic chat as "╨░╨▓╤Л".
+chcp 65001 > $null
 & $exe
 $code = $LASTEXITCODE
 
