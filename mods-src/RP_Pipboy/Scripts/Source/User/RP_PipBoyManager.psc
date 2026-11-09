@@ -59,8 +59,10 @@ Int Function Wanted()
     Return rank
 EndFunction
 
+; Whether `bit` (a power of two) is set in `mask`. Plain arithmetic: Math.LogicalAnd is F4SE's, not the
+; game's, and F4SE cannot be streamed to players.
 Bool Function IsSet(Int mask, Int bit)
-    Return Math.LogicalAnd(mask, bit) != 0
+    Return (mask / bit) % 2 == 1
 EndFunction
 
 Function Apply()
