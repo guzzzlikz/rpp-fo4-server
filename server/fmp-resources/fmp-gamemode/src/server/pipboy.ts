@@ -254,7 +254,7 @@ const onBlast = (victim: Player, damage: number, kind: string): void => {
         return;
     }
     console.log(`pipboy: ${accountName(victim)}'s ${wrist.label} cracked by a blast of ${Math.round(damage)}`);
-    reply(victim, `${wrist.label} треснул от взрыва. Нужен ремонт.`);
+    reply(victim, `Your ${wrist.label} was cracked by a blast. It needs repair.`);
     store(victim, (stored: Database.StoredPipboy): void => {
         stored.cracked = true;
     }, "a blast");
@@ -277,22 +277,22 @@ const report = (to: Player, player: Player): void => {
         return;
     }
     const devices: string = carried(player, { ...state.stored, cracked: false })
-        .map((device: Device): string => `${device.label}${state.stored.cracked && device.wrist ? " (треснул)" : ""}`)
+        .map((device: Device): string => `${device.label}${state.stored.cracked && device.wrist ? " (cracked)" : ""}`)
         .join(", ");
-    reply(to, `Pip-Boy ${accountName(player)}: ${describeMask(maskOf(player, state))}${config.enabled ? "" : " (модуль выключен)"}`);
-    reply(to, `Устройства: ${devices || "нет"}; выдано: ${describeMask(state.stored.grant)}; отнято: ${describeMask(state.stored.revoke)}`);
+    reply(to, `Pip-Boy ${accountName(player)}: ${describeMask(maskOf(player, state))}${config.enabled ? "" : " (module off)"}`);
+    reply(to, `Devices: ${devices || "none"}; granted: ${describeMask(state.stored.grant)}; revoked: ${describeMask(state.stored.revoke)}`);
 };
 
 const readCaps = (to: Player, args: string[]): number | null => {
     if (args.length === 0) {
-        reply(to, `Укажите возможности: ${kCapNames.join(", ")}, full`);
+        reply(to, `Name the capabilities: ${kCapNames.join(", ")}, full`);
         return null;
     }
     let mask = 0;
     for (const arg of args) {
         const cap: number | null = parseCap(arg);
         if (cap === null) {
-            reply(to, `Нет такой возможности: ${arg}. Есть: ${kCapNames.join(", ")}, full`);
+            reply(to, `No such capability: ${arg}. Known: ${kCapNames.join(", ")}, full`);
             return null;
         }
         mask |= cap;
@@ -300,7 +300,7 @@ const readCaps = (to: Player, args: string[]): number | null => {
     return mask;
 };
 
-const kUsage = "/pipboy [игрок] | grant|revoke <игрок> <возможности…> | reset|crack|repair <игрок>";
+const kUsage = "/pipboy [player] | grant|revoke <player> <capabilities...> | reset|crack|repair <player>";
 
 registerCommands(AdminLevel.player, {
     // "/pipboy": what the sender's own Pip-Boy allows. Staff (moderator+) also see and set anyone's.
@@ -370,14 +370,14 @@ const kStaffActions: Record<string, (by: Player, player: Player, args: string[])
         store(player, (stored: Database.StoredPipboy): void => {
             stored.cracked = true;
         }, `${accountName(by)} cracked it`);
-        reply(player, "Ваш Pip-Boy треснул. Нужен ремонт.");
+        reply(player, "Your Pip-Boy is cracked. It needs repair.");
         report(by, player);
     },
     repair: (by: Player, player: Player): void => {
         store(player, (stored: Database.StoredPipboy): void => {
             stored.cracked = false;
         }, `${accountName(by)} repaired it`);
-        reply(player, "Ваш Pip-Boy снова работает.");
+        reply(player, "Your Pip-Boy works again.");
         report(by, player);
     },
 };
