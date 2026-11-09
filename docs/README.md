@@ -10,6 +10,7 @@
 | [getting-started.md](getting-started.md) | Установка, сборка, запуск сервера, консоль |
 | [known-issues.md](known-issues.md) | Известные проблемы и обходные пути |
 | [resources/fmp-gamemode.md](resources/fmp-gamemode.md) | Стандартный gamemode: наши правки (SQLite), проверка логина и сохранений |
+| [resources/pipboy.md](resources/pipboy.md) | Модульный Pip-Boy (часть gamemode): устройства, возможности, команды, проверка |
 | [resources/fmp-healthcheck.md](resources/fmp-healthcheck.md) | Ресурс самопроверки: проверка того, что сервер поднялся корректно |
 
 ## Правило для документации
