@@ -16,6 +16,7 @@ import * as Creator from "./creator";
 import * as Database from "./database";
 import * as Equipment from "./equipment";
 import { clearKnockDown } from "./getup";
+import * as Pipboy from "./pipboy";
 import { Places, above, kCommonwealth, teleportSpace, toVector } from "./places";
 
 // Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
@@ -94,6 +95,9 @@ const sessions = new Map<number, Session>();
 const identityOf = (player: Player): Identity | null => sessions.get(player.id)?.identity ?? null;
 
 export const isLoggedIn = (player: Player): boolean => identityOf(player) !== null;
+
+// The account a logged-in player plays; null before they log in.
+export const accountId = (player: Player): number | null => identityOf(player)?.accountId ?? null;
 
 // Their character's name once logged in; their nickname before.
 export const characterName = (player: Player): string => identityOf(player)?.characterName ?? player.nickname;
@@ -264,6 +268,8 @@ const arrive = (session: Session): void => {
     // What they had in hands and wore when they left goes back on: the document only kept the bag.
     Equipment.begin(player);
     Equipment.track(player, Database.findEquipment(identity.accountId));
+    // What their Pip-Boy and devices let them use, now that they stand where they play.
+    Pipboy.begin(player);
 
     if (creating) {
         Creator.begin(player, identity.accountId, identity.characterName);

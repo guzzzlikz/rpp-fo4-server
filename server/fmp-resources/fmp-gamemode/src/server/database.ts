@@ -48,6 +48,14 @@ const kMigrations: readonly string[] = [
     // What the character has in hands and wears, as JSON {weapon, outfit}: the document keeps only
     // what they carry, so without it everything comes back unequipped.
     `ALTER TABLE characters ADD COLUMN equipment TEXT;`,
+    // The modular Pip-Boy (pipboy.ts): what staff granted or took away, and a cracked Pip-Boy.
+    `CREATE TABLE pipboy (
+       account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+       grant_mask  INTEGER NOT NULL DEFAULT 0,
+       revoke_mask INTEGER NOT NULL DEFAULT 0,
+       cracked     INTEGER NOT NULL DEFAULT 0,
+       updated_at  INTEGER NOT NULL
+     );`,
 ];
 
 export interface Account {
@@ -169,6 +177,11 @@ const statements = {
     findCharacter: prepare<[number], CharacterRow>("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
     findEquipment: prepare<[number], { equipment: string | null }>("SELECT equipment FROM characters WHERE account_id = ?"),
     saveEquipment: prepare<[string, number]>("UPDATE characters SET equipment = ? WHERE account_id = ?"),
+    findPipboy: prepare<[number], { grant_mask: number; revoke_mask: number; cracked: number }>("SELECT grant_mask, revoke_mask, cracked FROM pipboy WHERE account_id = ?"),
+    savePipboy: prepare<[number, number, number, number, number]>(
+        `INSERT INTO pipboy (account_id, grant_mask, revoke_mask, cracked, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(account_id) DO UPDATE SET grant_mask = excluded.grant_mask, revoke_mask = excluded.revoke_mask, cracked = excluded.cracked, updated_at = excluded.updated_at`,
+    ),
     saveCharacter: prepare<[number, string | null, number, number, number | null, number | null, number | null, number, number, number]>(
         `INSERT INTO characters (account_id, document, world_space, interior_cell, x, y, z, heading, play_seconds, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -247,6 +260,22 @@ export const findEquipment = (accountId: number): Equipment | null => {
 
 export const saveEquipment = (accountId: number, equipment: Equipment): void => {
     statements.saveEquipment.run(JSON.stringify(equipment), accountId);
+};
+
+// What staff set on a character's Pip-Boy; all clear for one nobody touched.
+export interface StoredPipboy {
+    grant: number;
+    revoke: number;
+    cracked: boolean;
+}
+
+export const findPipboy = (accountId: number): StoredPipboy => {
+    const row = statements.findPipboy.get(accountId);
+    return { grant: Number(row?.grant_mask ?? 0), revoke: Number(row?.revoke_mask ?? 0), cracked: Number(row?.cracked ?? 0) !== 0 };
+};
+
+export const savePipboy = (accountId: number, pipboy: StoredPipboy): void => {
+    statements.savePipboy.run(accountId, pipboy.grant, pipboy.revoke, pipboy.cracked ? 1 : 0, now());
 };
 
 export const saveAppearance = (accountId: number, appearance: string): void => {

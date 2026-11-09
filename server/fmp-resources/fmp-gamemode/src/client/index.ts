@@ -9,6 +9,7 @@ import { AuthEvents, type AuthPrompt, type AuthSubmit, type CreatorMenuClosed, i
 import * as Cinematic from "./cinematic";
 import "./emotes";
 import "./life";
+import "./pipboy";
 import * as Login from "./login";
 
 const kHelloRetryMs = 500;

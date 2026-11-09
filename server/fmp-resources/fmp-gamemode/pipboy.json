@@ -1,0 +1,13 @@
+{
+  "//": "Modular Pip-Boy (src/server/pipboy.ts). Capabilities: compass, geiger, biomonitor, map, gps, radio, flashlight, vats, holotape, full, none. After editing, type 'pipboy reload' in the server console. See docs/resources/fmp-gamemode.md, 'Pip-Boy'.",
+  "enabled": false,
+  "noDeviceMask": "none",
+  "devices": [
+    { "form": "0x00021B3B", "label": "Pip-Boy 3000 Mk IV", "caps": ["full"], "wrist": true }
+  ],
+  "crackOnBlastDamage": 0,
+  "blockedMenus": {
+    "VATSMenu": "vats"
+  },
+  "strictPipboyMenu": false
+}

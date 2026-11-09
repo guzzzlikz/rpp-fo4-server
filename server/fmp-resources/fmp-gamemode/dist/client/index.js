@@ -10,6 +10,7 @@ const auth_1 = require("../shared/auth");
 const Cinematic = require("./cinematic");
 require("./emotes");
 require("./life");
+require("./pipboy");
 const Login = require("./login");
 const kHelloRetryMs = 500;
 const kFadeSeconds = 1;

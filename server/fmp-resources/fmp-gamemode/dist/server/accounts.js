@@ -41,7 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.forgetAccount = exports.refreshAdminLevel = exports.loggedInPlayers = exports.adminLevel = exports.accountName = exports.characterName = exports.isLoggedIn = void 0;
+exports.forgetAccount = exports.refreshAdminLevel = exports.loggedInPlayers = exports.adminLevel = exports.accountName = exports.characterName = exports.accountId = exports.isLoggedIn = void 0;
 const node_crypto_1 = require("node:crypto");
 const auth_1 = require("../shared/auth");
 const errors_1 = require("../shared/errors");
@@ -50,6 +50,7 @@ const Creator = __importStar(require("./creator"));
 const Database = __importStar(require("./database"));
 const Equipment = __importStar(require("./equipment"));
 const getup_1 = require("./getup");
+const Pipboy = __importStar(require("./pipboy"));
 const places_1 = require("./places");
 // Where a player waits while logging in: Sanctuary, the cell the client loads the session's world in
 // (core/frontend/main_menu.h, kSessionCell). The move there runs under the join's loading screen,
@@ -83,6 +84,9 @@ const sessions = new Map();
 const identityOf = (player) => sessions.get(player.id)?.identity ?? null;
 const isLoggedIn = (player) => identityOf(player) !== null;
 exports.isLoggedIn = isLoggedIn;
+// The account a logged-in player plays; null before they log in.
+const accountId = (player) => identityOf(player)?.accountId ?? null;
+exports.accountId = accountId;
 // Their character's name once logged in; their nickname before.
 const characterName = (player) => identityOf(player)?.characterName ?? player.nickname;
 exports.characterName = characterName;
@@ -238,6 +242,8 @@ const arrive = (session) => {
     // What they had in hands and wore when they left goes back on: the document only kept the bag.
     Equipment.begin(player);
     Equipment.track(player, Database.findEquipment(identity.accountId));
+    // What their Pip-Boy and devices let them use, now that they stand where they play.
+    Pipboy.begin(player);
     if (creating) {
         Creator.begin(player, identity.accountId, identity.characterName);
     }

@@ -5,7 +5,7 @@
 // finishes before the handler that asked returns, so two events can never interleave a read and a
 // write.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.close = exports.markCreated = exports.saveAppearance = exports.saveEquipment = exports.findEquipment = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.deleteAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
+exports.close = exports.markCreated = exports.saveAppearance = exports.savePipboy = exports.findPipboy = exports.saveEquipment = exports.findEquipment = exports.saveCharacter = exports.findCharacter = exports.touchAccount = exports.deleteAccount = exports.setAdminLevel = exports.createAccount = exports.isCharacterNameTaken = exports.findAccount = void 0;
 const node_fs_1 = require("node:fs");
 const node_sqlite_1 = require("node:sqlite");
 // Beside the server, relative to where it runs.
@@ -46,6 +46,14 @@ const kMigrations = [
     // What the character has in hands and wears, as JSON {weapon, outfit}: the document keeps only
     // what they carry, so without it everything comes back unequipped.
     `ALTER TABLE characters ADD COLUMN equipment TEXT;`,
+    // The modular Pip-Boy (pipboy.ts): what staff granted or took away, and a cracked Pip-Boy.
+    `CREATE TABLE pipboy (
+       account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+       grant_mask  INTEGER NOT NULL DEFAULT 0,
+       revoke_mask INTEGER NOT NULL DEFAULT 0,
+       cracked     INTEGER NOT NULL DEFAULT 0,
+       updated_at  INTEGER NOT NULL
+     );`,
 ];
 // Runs `work` inside one transaction: all of it lands, or none of it does.
 const inTransaction = (db, work) => {
@@ -102,6 +110,9 @@ const statements = {
     findCharacter: prepare("SELECT document, appearance, created, world_space, interior_cell, x, y, z, heading, play_seconds FROM characters WHERE account_id = ?"),
     findEquipment: prepare("SELECT equipment FROM characters WHERE account_id = ?"),
     saveEquipment: prepare("UPDATE characters SET equipment = ? WHERE account_id = ?"),
+    findPipboy: prepare("SELECT grant_mask, revoke_mask, cracked FROM pipboy WHERE account_id = ?"),
+    savePipboy: prepare(`INSERT INTO pipboy (account_id, grant_mask, revoke_mask, cracked, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(account_id) DO UPDATE SET grant_mask = excluded.grant_mask, revoke_mask = excluded.revoke_mask, cracked = excluded.cracked, updated_at = excluded.updated_at`),
     saveCharacter: prepare(`INSERT INTO characters (account_id, document, world_space, interior_cell, x, y, z, heading, play_seconds, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(account_id) DO UPDATE SET
@@ -178,6 +189,15 @@ const saveEquipment = (accountId, equipment) => {
     statements.saveEquipment.run(JSON.stringify(equipment), accountId);
 };
 exports.saveEquipment = saveEquipment;
+const findPipboy = (accountId) => {
+    const row = statements.findPipboy.get(accountId);
+    return { grant: Number(row?.grant_mask ?? 0), revoke: Number(row?.revoke_mask ?? 0), cracked: Number(row?.cracked ?? 0) !== 0 };
+};
+exports.findPipboy = findPipboy;
+const savePipboy = (accountId, pipboy) => {
+    statements.savePipboy.run(accountId, pipboy.grant, pipboy.revoke, pipboy.cracked ? 1 : 0, now());
+};
+exports.savePipboy = savePipboy;
 const saveAppearance = (accountId, appearance) => {
     statements.saveAppearance.run(appearance, now(), accountId);
 };
