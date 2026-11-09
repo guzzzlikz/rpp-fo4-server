@@ -67,6 +67,7 @@ const kDefaults = {
     blockedMenus: { VATSMenu: pipboy_1.Cap.vats },
     strictPipboyMenu: false,
     hideHud: false,
+    modFaction: null,
 };
 const describe = (thrown) => (thrown instanceof Error ? thrown.message : String(thrown));
 // "full", ["map", "gps"], "0x0018" or a number.
@@ -136,14 +137,19 @@ const loadConfig = () => {
         blockedMenus,
         strictPipboyMenu: raw["strictPipboyMenu"] === true,
         hideHud: raw["hideHud"] === true,
+        modFaction: raw["modFaction"] === null || raw["modFaction"] === undefined ? null : readForm(raw["modFaction"]),
     };
+    if (raw["modFaction"] !== null && raw["modFaction"] !== undefined && config.modFaction === null) {
+        problems.push(`modFaction: ${JSON.stringify(raw["modFaction"])} is no form ID`);
+    }
     problems.forEach((problem) => console.warn(`pipboy.json: ${problem}`));
     return config;
 };
 let config = loadConfig();
 const logConfig = () => {
     console.log(`pipboy: ${config.enabled ? "on" : "off"}; ${config.devices.length} device(s): ${config.devices.map((device) => `${device.label} [${(0, pipboy_1.describeMask)(device.caps)}]`).join("; ") || "none"}; ` +
-        `without one: ${(0, pipboy_1.describeMask)(config.noDeviceMask)}; crack on blasts of ${config.crackOnBlastDamage > 0 ? config.crackOnBlastDamage : "never"}`);
+        `without one: ${(0, pipboy_1.describeMask)(config.noDeviceMask)}; crack on blasts of ${config.crackOnBlastDamage > 0 ? config.crackOnBlastDamage : "never"}; ` +
+        `mod: ${config.modFaction === null ? "none" : `faction 0x${config.modFaction.toString(16).toUpperCase().padStart(8, "0")}`}`);
 };
 logConfig();
 // Player id -> their state, from login on.
@@ -170,6 +176,48 @@ const capabilities = (player) => {
     return state === undefined ? pipboy_1.Cap.full : maskOf(player, state);
 };
 exports.capabilities = capabilities;
+// The bits of RP_PipboyBlock's rank, as RP_PipBoyManager.psc reads them.
+const kModBlock = { vats: 1, menu: 2, tabs: 4, fastTravel: 8 };
+const kPipboyScreens = pipboy_1.Cap.map | pipboy_1.Cap.radio | pipboy_1.Cap.biomonitor | pipboy_1.Cap.gps;
+const modBlocks = (mask) => {
+    if (!config.enabled) {
+        return 0;
+    }
+    let blocks = 0;
+    if ((mask & pipboy_1.Cap.vats) !== pipboy_1.Cap.vats) {
+        blocks |= kModBlock.vats;
+    }
+    if (config.strictPipboyMenu && (mask & kPipboyScreens) === 0) {
+        blocks |= kModBlock.menu;
+    }
+    // Experimental: what EnableJournal(false) locks in the Pip-Boy is for the testers to see.
+    if ((mask & kPipboyScreens) !== kPipboyScreens) {
+        blocks |= kModBlock.tabs;
+    }
+    if ((mask & pipboy_1.Cap.map) !== pipboy_1.Cap.map) {
+        blocks |= kModBlock.fastTravel;
+    }
+    return blocks;
+};
+// The mod's half: the blocks as a rank in its faction, which their game's script reads.
+const pushMod = (player, state, mask) => {
+    if (config.modFaction === null) {
+        return;
+    }
+    const rank = modBlocks(mask);
+    if (rank === state.modRank) {
+        return;
+    }
+    try {
+        const set = player.setFactionRank(config.modFaction, rank);
+        state.modRank = rank;
+        console.log(`pipboy: ${(0, accounts_1.accountName)(player)} mod blocks ${rank}${set ? "" : " (not set: gone, or in 16 factions)"}`);
+    }
+    catch (thrown) {
+        state.modRank = rank;
+        console.warn(`pipboy: ${(0, accounts_1.accountName)(player)}: mod faction refused (${describe(thrown)}); check modFaction in pipboy.json`);
+    }
+};
 const push = (player, why) => {
     const state = live.get(player.id);
     if (state === undefined || player.nickname === "") {
@@ -183,6 +231,7 @@ const push = (player, why) => {
         strictPipboyMenu: config.strictPipboyMenu,
         hideHud: config.hideHud,
     };
+    pushMod(player, state, message.mask);
     const json = JSON.stringify(message);
     if (json === state.sent) {
         return;
@@ -209,7 +258,7 @@ const begin = (player) => {
     if (id === null) {
         return;
     }
-    live.set(player.id, { accountId: id, stored: Database.findPipboy(id), sent: "" });
+    live.set(player.id, { accountId: id, stored: Database.findPipboy(id), sent: "", modRank: -1 });
     push(player, "login");
 };
 exports.begin = begin;

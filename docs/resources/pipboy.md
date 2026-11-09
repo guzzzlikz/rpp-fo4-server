@@ -10,6 +10,8 @@
 | `src/shared/pipboy.ts` | флаги возможностей и формат сообщения сервер → клиент |
 | `src/server/database.ts` | таблица `pipboy` (схема 6) |
 
+Игровая часть, которая запрещает V.A.T.S. и Pip-Boy средствами самой игры, — мод `RP_Pipboy.esp`: [pipboy-mod.md](pipboy-mod.md). Пока экспериментально.
+
 ## Как это работает
 
 1. Игрок входит в аккаунт и появляется в мире.
@@ -73,6 +75,7 @@
 | `crackOnBlastDamage` | `0` | урон от взрыва, при котором Pip-Boy трескается; `0` — никогда |
 | `blockedMenus` | `VATSMenu` | меню игры и возможность, без которой оно закрывается |
 | `strictPipboyMenu` | `false` | `true`: Pip-Boy (Tab) не открывается совсем без `map`, `radio`, `biomonitor` или `gps` |
+| `modFaction` | `null` | form ID фракции `RP_PipboyBlock` из мода [RP_Pipboy](pipboy-mod.md); `null` — мода нет |
 | `hideHud` | `false` | `true`: без `compass`, `geiger` и `biomonitor` прячется **весь** HUD, включая прицел, патроны и уведомления. `false`: HUD как в обычной игре |
 
 ### Устройства

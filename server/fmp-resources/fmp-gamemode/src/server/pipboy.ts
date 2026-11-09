@@ -45,6 +45,9 @@ interface Config {
     strictPipboyMenu: boolean;
     // FMP hides the HUD only as a whole: off by default, the HUD stays the game's own.
     hideHud: boolean;
+    // RP_PipboyBlock of RP_Pipboy.esp as their game loads it (docs/resources/pipboy-mod.md); null
+    // without the mod.
+    modFaction: number | null;
 }
 
 const kDefaults: Config = {
@@ -55,6 +58,7 @@ const kDefaults: Config = {
     blockedMenus: { VATSMenu: Cap.vats },
     strictPipboyMenu: false,
     hideHud: false,
+    modFaction: null,
 };
 
 const describe = (thrown: unknown): string => (thrown instanceof Error ? thrown.message : String(thrown));
@@ -127,7 +131,11 @@ const loadConfig = (): Config => {
         blockedMenus,
         strictPipboyMenu: raw["strictPipboyMenu"] === true,
         hideHud: raw["hideHud"] === true,
+        modFaction: raw["modFaction"] === null || raw["modFaction"] === undefined ? null : readForm(raw["modFaction"]),
     };
+    if (raw["modFaction"] !== null && raw["modFaction"] !== undefined && config.modFaction === null) {
+        problems.push(`modFaction: ${JSON.stringify(raw["modFaction"])} is no form ID`);
+    }
     problems.forEach((problem: string): void => console.warn(`pipboy.json: ${problem}`));
     return config;
 };
@@ -137,7 +145,8 @@ let config: Config = loadConfig();
 const logConfig = (): void => {
     console.log(
         `pipboy: ${config.enabled ? "on" : "off"}; ${config.devices.length} device(s): ${config.devices.map((device: Device): string => `${device.label} [${describeMask(device.caps)}]`).join("; ") || "none"}; ` +
-            `without one: ${describeMask(config.noDeviceMask)}; crack on blasts of ${config.crackOnBlastDamage > 0 ? config.crackOnBlastDamage : "never"}`,
+            `without one: ${describeMask(config.noDeviceMask)}; crack on blasts of ${config.crackOnBlastDamage > 0 ? config.crackOnBlastDamage : "never"}; ` +
+            `mod: ${config.modFaction === null ? "none" : `faction 0x${config.modFaction.toString(16).toUpperCase().padStart(8, "0")}`}`,
     );
 };
 logConfig();
@@ -149,6 +158,8 @@ interface Live {
     stored: Database.StoredPipboy;
     // What their client was last sent, to send again only on a change.
     sent: string;
+    // The rank last given in the mod's faction; -1 before any.
+    modRank: number;
 }
 
 // Player id -> their state, from login on.
@@ -179,6 +190,50 @@ export const capabilities = (player: Player): number => {
     return state === undefined ? Cap.full : maskOf(player, state);
 };
 
+// The bits of RP_PipboyBlock's rank, as RP_PipBoyManager.psc reads them.
+const kModBlock = { vats: 1, menu: 2, tabs: 4, fastTravel: 8 } as const;
+const kPipboyScreens: number = Cap.map | Cap.radio | Cap.biomonitor | Cap.gps;
+
+const modBlocks = (mask: number): number => {
+    if (!config.enabled) {
+        return 0;
+    }
+    let blocks = 0;
+    if ((mask & Cap.vats) !== Cap.vats) {
+        blocks |= kModBlock.vats;
+    }
+    if (config.strictPipboyMenu && (mask & kPipboyScreens) === 0) {
+        blocks |= kModBlock.menu;
+    }
+    // Experimental: what EnableJournal(false) locks in the Pip-Boy is for the testers to see.
+    if ((mask & kPipboyScreens) !== kPipboyScreens) {
+        blocks |= kModBlock.tabs;
+    }
+    if ((mask & Cap.map) !== Cap.map) {
+        blocks |= kModBlock.fastTravel;
+    }
+    return blocks;
+};
+
+// The mod's half: the blocks as a rank in its faction, which their game's script reads.
+const pushMod = (player: Player, state: Live, mask: number): void => {
+    if (config.modFaction === null) {
+        return;
+    }
+    const rank: number = modBlocks(mask);
+    if (rank === state.modRank) {
+        return;
+    }
+    try {
+        const set: boolean = player.setFactionRank(config.modFaction, rank);
+        state.modRank = rank;
+        console.log(`pipboy: ${accountName(player)} mod blocks ${rank}${set ? "" : " (not set: gone, or in 16 factions)"}`);
+    } catch (thrown: unknown) {
+        state.modRank = rank;
+        console.warn(`pipboy: ${accountName(player)}: mod faction refused (${describe(thrown)}); check modFaction in pipboy.json`);
+    }
+};
+
 const push = (player: Player, why: string): void => {
     const state: Live | undefined = live.get(player.id);
     if (state === undefined || player.nickname === "") {
@@ -192,6 +247,7 @@ const push = (player: Player, why: string): void => {
         strictPipboyMenu: config.strictPipboyMenu,
         hideHud: config.hideHud,
     };
+    pushMod(player, state, message.mask);
     const json: string = JSON.stringify(message);
     if (json === state.sent) {
         return;
@@ -220,7 +276,7 @@ export const begin = (player: Player): void => {
     if (id === null) {
         return;
     }
-    live.set(player.id, { accountId: id, stored: Database.findPipboy(id), sent: "" });
+    live.set(player.id, { accountId: id, stored: Database.findPipboy(id), sent: "", modRank: -1 });
     push(player, "login");
 };
 

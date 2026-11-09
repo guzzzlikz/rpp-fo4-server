@@ -10,5 +10,6 @@
     "VATSMenu": "vats"
   },
   "strictPipboyMenu": false,
-  "hideHud": false
+  "hideHud": false,
+  "modFaction": null
 }
