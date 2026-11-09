@@ -7,15 +7,13 @@
 //  - staff have "/revive <player>" for whatever is left.
 // And the other way round: the server has them up but their game still shows them dead. respawn()
 // does nothing for a player the server thinks alive, so their client reports it (src/client/life.ts)
-// and the server escalates: a shake, then a fresh death the normal path brings back from.
-// A death with a weapon out leaves the body lying on their own screen whatever the respawn does; the
-// game's own fall and get-up (getup.ts) is what gets them up.
+// and the server escalates: a move on the spot, then a fresh death the normal path brings back from.
 Object.defineProperty(exports, "__esModule", { value: true });
 const life_1 = require("../shared/life");
 const accounts_1 = require("./accounts");
 const chat_1 = require("./chat");
 const equipment_1 = require("./equipment");
-const getup_1 = require("./getup");
+const places_1 = require("./places");
 const players_1 = require("./players");
 const kRespawnDelayMs = 5000;
 // How long to wait for their game to report them up before asking again.
@@ -77,23 +75,28 @@ const awaitingUp = new Set();
 // Their game may report standing a moment before the server has them alive: look again this soon.
 const kUpRecheckMs = 1500;
 // After the client's own shake (the fly camera, src/client/life.ts): the body back to its stance,
-// then, for a death with a weapon out, the game's own fall and get-up.
+// and for a death with a weapon out, the case that left players lying on their own screen, a move on
+// the spot as well.
 const kStanceDelayMs = 300;
-const kKnockDelayMs = 600;
-const toStance = (player) => {
+const kMoveDelayMs = 900;
+const moveOnTheSpot = (player) => {
+    if (!isGone(player) && !player.isDead) {
+        player.teleport(player.position, player.heading, (0, places_1.teleportSpace)(player.getSpace()), { loadScreen: false });
+    }
+};
+// Everything that can shake a body loose without killing it: the client's fly camera, the stance,
+// a move on the spot.
+const shakeLoose = (player, move) => {
+    // The payload is not optional on the server, whatever the types say: one argument throws.
+    player.emit(life_1.LifeEvents.shake, "{}");
     setTimeout(() => {
         if (!isGone(player) && !player.isDead) {
             player.stopIdle();
         }
     }, kStanceDelayMs);
-};
-// Everything that can get a body up without killing it: the client's fly camera, the stance, and the
-// game's own fall and get-up.
-const shakeLoose = (player) => {
-    // The payload is not optional on the server, whatever the types say: one argument throws.
-    player.emit(life_1.LifeEvents.shake, "{}");
-    toStance(player);
-    setTimeout(() => (0, getup_1.knockDownAndUp)(player, (0, accounts_1.accountName)(player)), kKnockDelayMs);
+    if (move) {
+        setTimeout(() => moveOnTheSpot(player), kMoveDelayMs);
+    }
 };
 const onUp = (player, report, recheck) => {
     if (isGone(player) || !awaitingUp.has(player.id)) {
@@ -107,18 +110,17 @@ const onUp = (player, report, recheck) => {
     }
     awaitingUp.delete(player.id);
     stuck.delete(player.id);
-    const name = (0, accounts_1.accountName)(player);
-    // Their game may still have the weapon out: the refused get-up leaves it in hand.
-    const armed = report.weaponDrawn || player.isWeaponDrawn;
-    console.log(`${name}: their game has them standing (weapon out at death: ${report.weaponDrawn ? "yes" : "no"}, now: ${player.isWeaponDrawn ? "yes" : "no"}, camera ${report.camera}); ${armed ? "getting them up through a fall" : "back to stance"}, equipment goes back on`);
+    console.log(`${(0, accounts_1.accountName)(player)}: their game has them standing (weapon out at death: ${report.weaponDrawn ? "yes" : "no"}, camera ${report.camera}); shaking them loose, equipment goes back on`);
     // The client has already taken and given back the fly camera; the server's part follows.
-    toStance(player);
-    if (!armed) {
-        (0, equipment_1.restoreAfterRespawn)(player);
-        return;
+    setTimeout(() => {
+        if (!isGone(player) && !player.isDead) {
+            player.stopIdle();
+        }
+    }, kStanceDelayMs);
+    if (report.weaponDrawn) {
+        setTimeout(() => moveOnTheSpot(player), kMoveDelayMs);
     }
-    // Their armor goes back on once they are up.
-    setTimeout(() => (0, getup_1.knockDownAndUp)(player, name, () => (0, equipment_1.restoreAfterRespawn)(player)), kKnockDelayMs);
+    (0, equipment_1.restoreAfterRespawn)(player);
 };
 Events.onClient(life_1.LifeEvents.up, (sender, payload) => {
     onUp(sender, (0, life_1.readLifeUp)(payload), true);
@@ -155,10 +157,9 @@ Events.onClient(life_1.LifeEvents.stuck, (sender, payload) => {
     if (step <= kMaxStuckSteps) {
         console.warn(`${name}: their game shows them dead for ${report.secondsDown} s but the server has them up; recovery step ${step}/${kMaxStuckSteps}`);
     }
-    if (step === 1 || (step <= kMaxStuckSteps && player.isWeaponDrawn)) {
-        // The fly camera, the stance and the game's own fall and get-up. A death with the weapon still
-        // out would only lie them down the same way again.
-        shakeLoose(player);
+    if (step === 1) {
+        // The fly camera, the stance and a move on the spot, which puts the body where the actor is.
+        shakeLoose(player, true);
     }
     else if (step <= kMaxStuckSteps) {
         // Through death again, in step with the server this time: playerDeath, then the respawn chain.
@@ -191,9 +192,8 @@ Events.on("resourceStop", (resourceName) => {
 });
 // --- "/unstuck": the player's own way out ----------------------------------------------------------
 // Their game can report them up while their body stays lying (seen after deaths with a weapon in
-// hand): nothing here can see that, so the player says so. First the game's own fall and get-up;
-// asked again soon after, a fresh death the normal respawn brings them back from, once the weapon is
-// away: a death with it out lies them down the same way again.
+// hand): nothing here can see that, so the player says so. First a move on the spot; asked again
+// soon after, a fresh death the normal respawn brings them back from.
 const kUnstuckWindowMs = 30000;
 const kUnstuckCooldownMs = 5000;
 const unstuckAt = new Map();
@@ -216,12 +216,6 @@ Events.on("playerDisconnect", (player) => {
             return;
         }
         if (last !== undefined && now - last < kUnstuckWindowMs) {
-            if (player.isWeaponDrawn) {
-                unstuckAt.set(player.id, now);
-                console.warn(`${name}: /unstuck again with the weapon out; asked to put it away first`);
-                (0, chat_1.reply)(player, "Сначала уберите оружие (удерживайте R), затем повторите /unstuck.");
-                return;
-            }
             unstuckAt.delete(player.id);
             console.warn(`${name}: /unstuck again; through death once more`);
             (0, chat_1.reply)(player, "Повторное возрождение…");
@@ -229,9 +223,9 @@ Events.on("playerDisconnect", (player) => {
             return;
         }
         unstuckAt.set(player.id, now);
-        console.warn(`${name}: /unstuck; shaking them loose (camera, stance, a fall and get-up)`);
-        shakeLoose(player);
-        (0, chat_1.reply)(player, "Персонаж падает и поднимается заново. Если всё ещё лежите, повторите /unstuck через 5–30 секунд.");
+        console.warn(`${name}: /unstuck; shaking them loose (camera, stance, a move on the spot)`);
+        shakeLoose(player, true);
+        (0, chat_1.reply)(player, "Камера и персонаж сброшены. Если всё ещё лежите, повторите /unstuck в течение 30 секунд.");
     },
 });
 (0, chat_1.registerCommands)(chat_1.AdminLevel.moderator, {

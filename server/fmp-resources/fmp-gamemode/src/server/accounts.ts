@@ -15,7 +15,6 @@ import { AdminLevel, isAdminLevel, reply } from "./chat";
 import * as Creator from "./creator";
 import * as Database from "./database";
 import * as Equipment from "./equipment";
-import { clearKnockDown } from "./getup";
 import * as Pipboy from "./pipboy";
 import { Places, above, kCommonwealth, teleportSpace, toVector } from "./places";
 
@@ -257,8 +256,6 @@ const arrive = (session: Session): void => {
     }
 
     player.setVirtualWorld(0);
-    // Left in the middle of the fall that gets a body up (getup.ts): their character kept the paralysis.
-    clearKnockDown(player);
     if (stored?.position) {
         player.teleport(toVector(stored.position), stored.heading, teleportSpace(stored.space), { loadScreen: false });
     } else {
