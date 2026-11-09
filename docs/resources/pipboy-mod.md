@@ -38,6 +38,20 @@
 
 Нужен Fallout 4 с **Creation Kit** (бесплатно в Steam/Bethesda.net). В Creation Kit входят компилятор Papyrus и утилита `Archive2`.
 
+### 0. Подготовка Creation Kit (один раз)
+
+Без этого CK при создании скрипта пишет **Parent Script doesn't exist**: он не видит исходники базовых скриптов игры.
+
+1. Распакуй `Fallout 4\Data\Scripts\Source\Base\Base.zip` (в некоторых версиях `Data\Scripts\Source\Base.zip`) в `Fallout 4\Data\Scripts\Source\Base\`. Файлы `Quest.psc`, `Actor.psc`, `InputEnableLayer.psc` должны лежать прямо в `Base\`. Если архива нет, проверь целостность файлов игры в Steam и что Creation Kit установлен.
+2. Создай папку `Fallout 4\Data\Scripts\Source\User\`.
+3. В `Fallout 4\CreationKitCustom.ini` (нет файла — создай) добавь:
+   ```ini
+   [Papyrus]
+   sScriptSourceFolder = ".\Data\Scripts\Source\User"
+   sAdditionalImports = "$(source);.\Data\Scripts\Source\Base"
+   ```
+4. Перезапусти Creation Kit.
+
 ### 1. Плагин
 
 1. Запусти Creation Kit, **File → Data**, отметь только `Fallout4.esm`, **OK**.
@@ -50,7 +64,7 @@
    - Отметь **Start Game Enabled**, сними **Run Once**.
    - **OK**, затем снова открой квест.
 4. **Скрипт.** В квесте вкладка **Scripts → Add → [New Script]**.
-   - Name: `RP_PipBoyManager`, Extends: `Quest`, **OK**.
+   - Name: `RP_PipBoyManager`, Extends: `Quest`, **OK**. **Без пространства имён**: не `MyMod01:RP_PipBoyManager`, поле Namespace (если есть) оставь пустым. Иначе компиляция падает с `filename does not match script name … expected: "MyMod01:RP_PipBoyManager"`, а скрипт ляжет в `Scripts\MyMod01\`, и в архиве путь будет другим.
    - Правый клик по скрипту → **Edit Source**. Замени всё содержимое текстом из `mods-src/RP_Pipboy/Scripts/Source/User/RP_PipBoyManager.psc` и сохрани: скрипт скомпилируется. Ошибки компиляции видны внизу окна.
    - Правый клик по скрипту → **Properties**. `RP_PipboyBlock` → **Edit Value** → выбери фракцию `RP_PipboyBlock`. `ShowNotifications` оставь `True`. **OK**.
 5. **File → Save**, имя `RP_Pipboy.esp`.
