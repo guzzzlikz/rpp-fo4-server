@@ -77,10 +77,6 @@ const isWhole = (value, min, max) => value !== undefined && Number.isInteger(val
     // "/special": the SPECIAL menu. "/special <value> <base>": sets one base.
     special: (player, args) => {
         if (args.length === 0) {
-            if (!Game.has("specialMenu")) {
-                (0, chat_1.reply)(player, `/special: ${Game.name} has no SPECIAL menu; use /special <value> <base>`);
-                return;
-            }
             player.openSpecialMenu();
             return;
         }

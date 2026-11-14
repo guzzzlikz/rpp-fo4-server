@@ -51,7 +51,7 @@ exports.isCreating = isCreating;
 const finish = (creation) => {
     creations.delete(creation.player.id);
     Database.markCreated(creation.accountId);
-    (0, chat_1.reply)(creation.player, Game.id === "fo76" ? `Welcome to Appalachia, ${creation.characterName}.` : `Welcome to the Commonwealth, ${creation.characterName}.`);
+    (0, chat_1.reply)(creation.player, `Welcome to the Commonwealth, ${creation.characterName}.`);
     console.log(`${creation.player.nickname}: ${creation.characterName} created`);
 };
 // After `kCaptureDelayMs`, so the look read is the one the editor closed on.
@@ -67,11 +67,6 @@ const storeLook = (creation) => {
             return;
         }
         Database.saveAppearance(creation.accountId, appearance);
-        // A game without the creation SPECIAL screen ends the creator on the look.
-        if (!Game.has("specialMenu")) {
-            finish(creation);
-            return;
-        }
         creation.step = auth_1.CreatorMenus.special;
         creation.player.openSpecialMenu();
     }, kCaptureDelayMs);

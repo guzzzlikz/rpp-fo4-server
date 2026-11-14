@@ -31,7 +31,8 @@ const check = (name, probe) => {
 // Synchronous checks: every global the API promises is there and answers sensibly.
 const syncChecks = () => [
     check("runtime is the server", () => ExecutionEnvironment.isServer === true || `isServer=${ExecutionEnvironment.isServer}`),
-    check("game is Fallout 4", () => Game.id === "fo4" || `Game.id=${Game.id}`),
+    // FMP 0.3 is Fallout 4 only (Game is gone) and brought Quests: its absence means an older FMPServer.exe.
+    check("FMP 0.3 API present", () => typeof Quests === "object" || "no Quests global: FMPServer.exe older than 0.3"),
     check("framework version known", () => ExecutionEnvironment.frameworkVersion !== "" || "empty frameworkVersion"),
     check("world clock readable", () => (World.hour >= 0 && World.hour < 24) || `World.hour=${World.hour}`),
     check("player list readable", () => Array.isArray(Player.all()) || "Player.all() is not an array"),
@@ -63,7 +64,7 @@ function statusLines() {
     const players = Player.all();
     const names = players.map((player) => player.nickname).join(", ");
     return [
-        `framework ${ExecutionEnvironment.frameworkVersion || "?"}, mod ${ExecutionEnvironment.modVersion || "?"}, game ${Game.name} (${Game.id})`,
+        `framework ${ExecutionEnvironment.frameworkVersion || "?"}, mod ${ExecutionEnvironment.modVersion || "?"}`,
         `uptime ${formatUptime(uptimeSec())}, client pings answered ${pingsAnswered}`,
         `world: hour ${World.hour.toFixed(2)}, time scale ${World.timeScale}, weather ${hex(World.weather)}${World.weatherForced ? " (forced)" : ""}`,
         `players online: ${players.length}${players.length > 0 ? ` -> ${names}` : ""}`,

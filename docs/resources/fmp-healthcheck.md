@@ -24,7 +24,7 @@
 | Проверка | Что значит FAIL |
 |---|---|
 | runtime is the server | скрипт запущен не в серверном рантайме |
-| game is Fallout 4 | в `server.json` указан `mod.game` не `fo4` |
+| FMP 0.3 API present | на сервере `FMPServer.exe` версии 0.3 или новее (есть глобальный `Quests`); иначе сервер старый |
 | framework version known | рантайм не сообщил версию framework |
 | world clock readable | глобальный объект `World` недоступен или сломан |
 | player list readable | `Player.all()` не работает |
@@ -65,7 +65,7 @@ npm run build
    [fmp-healthcheck] [healthcheck] PASS runtime is the server
    ... (всего 9 строк PASS)
    [fmp-healthcheck] [healthcheck] SELFTEST OK: 9/9 checks passed
-   [fmp-healthcheck] [healthcheck] framework 37.0.4, mod 0.2.5, game Fallout 4 (fo4)
+   [fmp-healthcheck] [healthcheck] framework …, mod 0.3.1
    ```
    Если есть хотя бы одна строка `FAIL` или `SELFTEST FAILED`, запуск некорректен. Причины перечислены в таблице проверок выше.
 3. Введи в консоли `hc`.

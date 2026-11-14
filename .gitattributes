@@ -5,3 +5,4 @@
 *.dll binary
 *.esp binary
 *.dds binary
+server/libnode.dll filter=lfs diff=lfs merge=lfs -text

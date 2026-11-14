@@ -85,10 +85,6 @@ registerCommands(AdminLevel.admin, {
     // "/special": the SPECIAL menu. "/special <value> <base>": sets one base.
     special: (player: Player, args: string[]): void => {
         if (args.length === 0) {
-            if (!Game.has("specialMenu")) {
-                reply(player, `/special: ${Game.name} has no SPECIAL menu; use /special <value> <base>`);
-                return;
-            }
             player.openSpecialMenu();
             return;
         }

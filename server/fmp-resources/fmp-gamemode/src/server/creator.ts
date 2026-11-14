@@ -26,7 +26,7 @@ export const isCreating = (player: Player): boolean => creations.has(player.id);
 const finish = (creation: Creation): void => {
     creations.delete(creation.player.id);
     Database.markCreated(creation.accountId);
-    reply(creation.player, Game.id === "fo76" ? `Welcome to Appalachia, ${creation.characterName}.` : `Welcome to the Commonwealth, ${creation.characterName}.`);
+    reply(creation.player, `Welcome to the Commonwealth, ${creation.characterName}.`);
     console.log(`${creation.player.nickname}: ${creation.characterName} created`);
 };
 
@@ -43,11 +43,6 @@ const storeLook = (creation: Creation): void => {
             return;
         }
         Database.saveAppearance(creation.accountId, appearance);
-        // A game without the creation SPECIAL screen ends the creator on the look.
-        if (!Game.has("specialMenu")) {
-            finish(creation);
-            return;
-        }
         creation.step = CreatorMenus.special;
         creation.player.openSpecialMenu();
     }, kCaptureDelayMs);
