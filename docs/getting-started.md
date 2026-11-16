@@ -5,12 +5,15 @@
 | Компонент | Зачем | Обязательно |
 |---|---|---|
 | Релиз FMP (берётся в Discord проекта, ссылка на https://fallout.mp) | сервер, клиент, стандартный gamemode | да |
+| Git с **Git LFS** | `server/libnode.dll` (115 МБ) хранится через LFS: без него после `git clone`/`git pull` на месте файла окажется текстовый указатель, и сервер не запустится | да |
 | Node.js **22+** с npm | компиляция TypeScript-ресурсов | да, для сборки |
 | Fallout 4 из Steam | подключиться к серверу как игрок | только для проверок в игре |
 | Папка `Data` из Fallout 4 | синхронизация NPC на сервере | нет |
 | VS Code | автодополнение по API | нет |
 
-Сам сервер работает без Node.js: внутри `FMPServer.exe` встроен свой Node (**25.6.1**, `server/libnode.dll`).
+Сам сервер работает без Node.js: внутри `FMPServer.exe` встроен свой Node (`server/libnode.dll`).
+
+**Git LFS.** В Git для Windows он уже есть. Один раз выполни `git lfs install`, затем `git clone` / `git pull` как обычно. Если репозиторий скачан без LFS, `server/libnode.dll` весит около 130 байт: выполни в корне `git lfs pull`.
 
 ## Структура репозитория
 
@@ -120,7 +123,7 @@ cd ..\..\..
 
 Так сделан переход 0.2.5 → 0.3.1 (2026-11-14). Распакуй релиз в корень репозитория как `FMP-<версия>/`: папки `FMP-*` в `.gitignore`.
 
-1. **Сервер:** скопируй из `FMP-<версия>/server/` в `server/` только `FMPServer.exe`, `libnode.dll`, `crashpad_handler.exe`. Папку `fmp-resources/` из релиза **не копируй**: стандартный gamemode заменит наш, а в 0.3.1 в нём нет аккаунтов.
+1. **Сервер:** скопируй из `FMP-<версия>/server/` в `server/` только `FMPServer.exe`, `libnode.dll`, `crashpad_handler.exe`. Файлы больше 100 МБ GitHub не принимает: такие храни через LFS (`git lfs track <путь>`), как `libnode.dll`. Папку `fmp-resources/` из релиза **не копируй**: стандартный gamemode заменит наш, а в 0.3.1 в нём нет аккаунтов.
 2. **Типы:** в `server/fmp-resources/fmp-gamemode` и `fmp-healthcheck` выполни `npm install --save-dev --save-exact @falloutmp/types@<версия>`, затем `npm run build`. Ошибки компиляции — это изменения API (в 0.3.1 убрали глобальный `Game`).
 3. **Сравни API:** удалённые и новые функции видны по `node_modules/@falloutmp/types/generated/*.d.ts`. Не всё ломает сборку.
 4. **Запусти сервер:** в логе не должно быть `server.json: '…' is not a key this build understands` (лишние ключи убери) и должно быть `SELFTEST OK: 9/9`.
