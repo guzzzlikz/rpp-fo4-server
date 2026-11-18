@@ -121,10 +121,10 @@ cd ..\..\..
 
 ## Обновить FMP до нового релиза
 
-Так сделан переход 0.2.5 → 0.3.1 (2026-11-14). Распакуй релиз в корень репозитория как `FMP-<версия>/`: папки `FMP-*` в `.gitignore`.
+Так сделаны переходы 0.2.5 → 0.3.1 (2026-11-14) и 0.3.1 → 0.4.0 (2026-11-19). Распакуй релиз в корень репозитория как `FMP-<версия>/`: папки `FMP-*` в `.gitignore`.
 
 1. **Сервер:** скопируй из `FMP-<версия>/server/` в `server/` только `FMPServer.exe`, `libnode.dll`, `crashpad_handler.exe`. Файлы больше 100 МБ GitHub не принимает: такие храни через LFS (`git lfs track <путь>`), как `libnode.dll`. Папку `fmp-resources/` из релиза **не копируй**: стандартный gamemode заменит наш, а в 0.3.1 в нём нет аккаунтов.
-2. **Типы:** в `server/fmp-resources/fmp-gamemode` и `fmp-healthcheck` выполни `npm install --save-dev --save-exact @falloutmp/types@<версия>`, затем `npm run build`. Ошибки компиляции — это изменения API (в 0.3.1 убрали глобальный `Game`).
+2. **Типы:** в `server/fmp-resources/fmp-gamemode` и `fmp-healthcheck` выполни `npm install --save-dev --save-exact @falloutmp/types@<версия>`, затем `npm run build`. Ошибки компиляции — это изменения API (в 0.3.1 убрали глобальный `Game`, в 0.4.0 у `playerHit` / `npcHit` появились вид `"vats"` и пятый аргумент `vatsChance`).
 3. **Сравни API:** удалённые и новые функции видны по `node_modules/@falloutmp/types/generated/*.d.ts`. Не всё ломает сборку.
 4. **Запусти сервер:** в логе не должно быть `server.json: '…' is not a key this build understands` (лишние ключи убери) и должно быть `SELFTEST OK: 9/9`.
 5. **Копии релиза**, которые не хранятся в git (`client/`, `server-linux/`, `fmp-resources/` в корне), замени папками из релиза. В `client/` сохрани `logs/`.
@@ -144,7 +144,7 @@ npm run watch:client     # пересборка клиентской части 
 ## Новый ресурс
 
 1. Скопируй `server/fmp-resources/fmp-healthcheck` как шаблон и переименуй. Поле `name` в `package.json` должно совпадать с именем папки.
-2. Версию `@falloutmp/types` держи равной версии релиза сервера; сейчас это `0.3.1`. Если версии расходятся, типы описывают несуществующие или пропускают существующие функции.
+2. Версию `@falloutmp/types` держи равной версии релиза сервера; сейчас это `0.4.0`. Если версии расходятся, типы описывают несуществующие или пропускают существующие функции.
 3. В tsconfig нужен `"module": "CommonJS"`, потому что ресурсы загружаются через `require()`.
 4. Клиентские данные считай недоверенными и проверяй их на сервере.
 5. **Не подключай нативные npm-модули** (`*.node`, например `better-sqlite3`, `bcrypt`): внутри Windows `FMPServer.exe` они не загружаются. Для SQLite используй `node:sqlite`, для хэшей `node:crypto`. Подробности в [known-issues.md](known-issues.md).

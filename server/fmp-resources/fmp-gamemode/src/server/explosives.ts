@@ -10,7 +10,7 @@ Events.on("playerExplosion", (player: Player, position: Vector3, explosion: numb
     console.log(`${by} set off ${formatForm(explosion)} at ${formatPoint(position)}`);
 });
 
-Events.on("playerHit", (attacker: Player, victim: Player, damage: number, kind: "direct" | "blast" | "hazard"): void => {
+Events.on("playerHit", (attacker: Player, victim: Player, damage: number, kind: "direct" | "blast" | "hazard" | "vats"): void => {
     if (kind !== "direct") {
         console.log(`${attacker.nickname}'s ${kind} reached ${victim.nickname}${kind === "blast" ? ` for ${damage.toFixed(1)}` : ""}`);
     }

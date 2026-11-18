@@ -65,7 +65,7 @@ npm run build
    [fmp-healthcheck] [healthcheck] PASS runtime is the server
    ... (всего 9 строк PASS)
    [fmp-healthcheck] [healthcheck] SELFTEST OK: 9/9 checks passed
-   [fmp-healthcheck] [healthcheck] framework …, mod 0.3.1
+   [fmp-healthcheck] [healthcheck] framework 42.1.0, mod 0.4.0
    ```
    Если есть хотя бы одна строка `FAIL` или `SELFTEST FAILED`, запуск некорректен. Причины перечислены в таблице проверок выше.
 3. Введи в консоли `hc`.
